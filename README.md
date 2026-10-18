@@ -165,6 +165,7 @@ Os testes criam **bancos isolados temporários**. Consultas externas de CEP usam
 - `hours.mjs`: regras de funcionamento, fechamento e próxima abertura.
 - `postal.mjs`: consulta/cadastro de CEP e cache.
 - `public/app.js`: landing page, cardápio e checkout.
+- `public/effects.js`: feedback visual de inclusão, cliques e entrada dos cards, independente da persistência do carrinho.
 - `public/admin.js`: administração.
 - `public/order.js`: acompanhamento e compartilhamento GPS.
 - `public/style.css`: layout responsivo, estados e animações, com suporte à redução de movimento.
@@ -175,3 +176,5 @@ O envio do código ao GitHub não coloca o site em uma hospedagem. O deploy e a 
 Os símbolos de dinheiro, Pix e cartão em `public/assets/payment-*.svg` são do [Font Awesome Free 6.7.2](https://fontawesome.com/), licenciados sob [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Os avisos de autoria foram preservados nos arquivos SVG.
 
 As quatro bebidas usam imagens individuais em WebP, com miniaturas leves para o cardápio/carrinho e arquivos maiores para a foto ampliada. As garrafas têm flutuação suave e inclinação/destaque ao passar o mouse ou focar com teclado. Clique na foto ou no nome para ampliar e adicionar unidades. A preferência de redução de movimento desativa as animações.
+
+Ao incluir um produto, a imagem faz um trajeto até o carrinho, o contador recebe um destaque breve e o botão + confirma a ação. Ondas de clique e entradas suaves dos cards complementam as interações. Os efeitos têm duração curta, limite de elementos simultâneos, não bloqueiam novos cliques e respeitam a redução de movimento. O carrinho é atualizado antes de qualquer efeito visual.

@@ -466,3 +466,64 @@ test("equipe: proprietário cria atendente e primeiro acesso exige senha pessoal
   await expect(staff.locator("#login-form")).toBeVisible();
   await staff.close();
 });
+
+test("efeitos de inclusão preservam cliques rápidos, limite de quantidade e redução de movimento", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 1280, height: 800 },
+    reducedMotion: "no-preference",
+  });
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto(base + "/#cardapio");
+  const add = page.locator('[data-add="guarana"]');
+  await add.click();
+  await expect(page.locator("#cart-count")).toHaveText("1");
+  await expect(page.locator(".cart-flyer")).toHaveCount(1);
+  await expect(add).toHaveClass(/added-feedback/);
+  // The effect must never throttle or duplicate the cart operation.
+  await add.evaluate((button) => {
+    for (let i = 0; i < 6; i++) button.click();
+  });
+  await expect(page.locator("#cart-count")).toHaveText("7");
+  assert.ok((await page.locator(".cart-flyer").count()) <= 4);
+  assert.equal(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem("dp-cart"))[0].quantity,
+    ),
+    7,
+  );
+  await expect(page.locator("[data-ui-effect]")).toHaveCount(0);
+  await add.evaluate((button) => {
+    for (let i = 0; i < 30; i++) button.click();
+  });
+  await expect(page.locator("#cart-count")).toHaveText("30");
+  await expect(page.locator("#toast")).toContainText("limite");
+  await expect(page.locator("[data-ui-effect]")).toHaveCount(0);
+  await page.locator('.drink-preview[data-product="guarana"]').click();
+  await page.locator("#add-product").click();
+  await expect(page.locator(".product-modal")).toBeVisible();
+  await expect(page.locator("#cart-count")).toHaveText("30");
+  await expect(page.locator(".cart-flyer")).toHaveCount(0);
+  await page.getByRole("button", { name: "Fechar detalhes" }).click();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.locator('[data-add="coca"]').click();
+  await expect(page.locator("#cart-count")).toHaveText("31");
+  await expect(page.locator("[data-ui-effect]")).toHaveCount(0);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".pizza-card .image-button").first().click();
+  await page.locator("#product-note").fill("Sem cebola");
+  await page.locator("#add-product").click();
+  await expect(page.locator(".product-modal")).toHaveCount(0);
+  await expect(page.locator("#cart-count")).toHaveText("32");
+  await expect(page.locator(".cart-flyer")).toHaveCount(1);
+  await expect(page.locator("[data-ui-effect]")).toHaveCount(0);
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  assert.deepEqual(errors, []);
+  await page.close();
+});

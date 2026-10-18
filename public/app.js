@@ -1,4 +1,9 @@
 import {
+  addedToCart,
+  installInteractionEffects,
+  revealMenu,
+} from "./effects.js";
+import {
   $,
   $$,
   esc,
@@ -138,7 +143,7 @@ function updateCartBadge() {
   $("#mobile-cart-count").textContent = count() ? `· ${count()}` : "";
   $(".cart-trigger").setAttribute("aria-label", `Meu pedido, ${count()} itens`);
 }
-function addItem(id, quantity = 1, note = "") {
+function addItem(id, quantity = 1, note = "", feedback = {}) {
   const existing = cart.find((i) => i.id === id && i.note === note);
   if (existing) {
     if (existing.quantity + quantity > 30) {
@@ -149,6 +154,11 @@ function addItem(id, quantity = 1, note = "") {
   } else cart.push({ id, quantity, note });
   saveCart();
   toast("Adicionado ao seu pedido.");
+  addedToCart(
+    products.find((p) => p.id === id),
+    feedback,
+  );
+  return true;
 }
 function image(product, cls = "", loading = "lazy") {
   if (product.type === "drink")
@@ -214,6 +224,7 @@ function renderHome() {
     .join(
       "",
     )}${!shop.drinksConfirmed ? '<p class="hint">Disponibilidade e preços em confirmação.</p>' : ""}<button class="outline" data-action="cart">VER MEU PEDIDO <span class="arrow">↗</span></button></article></div></section><section id="informacoes" class="section info-section"><div class="info-inner"><p class="eyebrow">02 / INFORMAÇÕES</p><h2>Entrega ou retirada.</h2><div class="info-grid"><div><p>${esc(shop.address)}<br>CEP ${esc(shop.postalCode)}</p><p>Consulte a disponibilidade pelo CEP.<br>A taxa aparece no pedido antes de finalizar.</p><span data-store-status class="${open ? "store-open" : "store-closed"}">● ${esc(availability?.shortLabel || "Consultando horário…")}</span></div><div><p>${esc(shop.hours)}<br>Horário de Brasília.</p><p><a href="https://wa.me/${shop.whatsapp}" target="_blank" rel="noopener noreferrer">WhatsApp (21) 99456-8096 ↗</a></p><p>${instagram(shop)}</p></div></div><div class="accepted-payments" aria-labelledby="accepted-payments-title"><h3 id="accepted-payments-title">Aceitamos</h3><ul class="payment-method-list"><li><img src="/assets/payment-cash.svg" width="24" height="24" alt="" loading="lazy">Dinheiro</li><li><img class="pix-mark" src="/assets/payment-pix.svg" width="24" height="24" alt="" loading="lazy">Pix</li><li><img src="/assets/payment-card.svg" width="24" height="24" alt="" loading="lazy">Cartão</li></ul></div><div class="info-cnpj"><span>CNPJ ${esc(shop.cnpj)}</span><div><a href="/privacidade">Privacidade</a></div></div></div></section>`;
+  const disposeReveal = revealMenu(main);
   prepareImage(products.filter((p) => p.type === "pizza")[(slide + 1) % 7]);
   // Autoplay stays active while hovering; only hidden pages and open dialogs pause it.
   slideTimer = setInterval(() => {
@@ -239,6 +250,7 @@ function renderHome() {
     slideRequest++;
     clearInterval(slideTimer);
     homeObserver.disconnect();
+    disposeReveal();
   };
   setTab(location.hash === "#cardapio" ? "menu" : "home");
   if (location.hash)
@@ -266,8 +278,12 @@ function openProduct(id) {
       }),
   );
   $("#add-product").onclick = () => {
-    addItem(p.id, qty, $("#product-note").value.trim());
-    closeOverlay();
+    const added = addItem(p.id, qty, $("#product-note").value.trim(), {
+      source:
+        $(".product-picture img", dialog) || $(".product-picture", dialog),
+      button: $("#add-product", dialog),
+    });
+    if (added) closeOverlay();
   };
 }
 function cartItemsHtml() {
@@ -519,6 +535,7 @@ async function route() {
     main.innerHTML = `<section class="page-shell narrow"><h1>Não foi possível abrir esta página.</h1><p class="error">${esc(err.message)}</p><a class="outline" href="/">VOLTAR AO INÍCIO ↗</a></section>`;
   }
 }
+installInteractionEffects();
 document.addEventListener("click", (e) => {
   const link = e.target.closest("a[href]");
   if (
@@ -556,7 +573,10 @@ document.addEventListener("click", (e) => {
   if (target.dataset.product) openProduct(target.dataset.product);
   if (target.dataset.add) {
     if (!shop.drinksConfirmed) return;
-    addItem(target.dataset.add);
+    addItem(target.dataset.add, 1, "", {
+      source: target.closest(".drink-row")?.querySelector("img"),
+      button: target,
+    });
   }
   if ("slide" in target.dataset) setSlide(Number(target.dataset.slide));
   if (target.dataset.slideStep)
