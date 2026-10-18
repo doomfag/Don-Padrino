@@ -32,6 +32,19 @@ Os comandos de início usam o proxy configurado no ambiente e os certificados do
 
 ## Ativar sua conta administrativa
 
+O painel não tem link no menu nem no rodapé públicos. O endereço direto é `/admin`, e as APIs administrativas exigem sessão autenticada.
+
+### Pelo Railway
+
+1. No serviço Don-Padrino, abra **Variáveis** e adicione **`ADMIN_INITIAL_PASSWORD`** com uma senha pessoal de 12 a 256 caracteres. Cadastre o valor somente no painel privado do Railway, nunca no chat, Git ou arquivos públicos. Use uma senha longa e exclusiva.
+2. Aplique as alterações com **Deploy**. Na primeira inicialização, se ainda não houver administrador, a aplicação salva somente o hash scrypt da senha no SQLite do volume `DATA_DIR`.
+3. Acesse `https://seu-endereco/admin` e entre com a senha cadastrada.
+4. Após confirmar o acesso, remova a variável `ADMIN_INITIAL_PASSWORD` do Railway e aplique a alteração. O hash permanece no volume e o login continua funcionando.
+
+Essa variável **não redefine uma senha já cadastrada**, mesmo em novos deploys. Para recuperar ou redefinir o acesso existente, use o comando de terminal abaixo no mesmo volume de dados. Não crie outra cópia vazia do banco para alterar a senha.
+
+### Pelo terminal privado
+
 Em um terminal privado, na pasta do projeto:
 
 ```bash

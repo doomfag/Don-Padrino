@@ -140,6 +140,21 @@ export function verifyPassword(password, hash) {
     return false;
   }
 }
+// The hosting owner supplies this value privately; never log it or expose it to the client.
+export function initializeAdmin(password = process.env.ADMIN_INITIAL_PASSWORD) {
+  if (getSetting("admin") || !password) return false;
+  if (
+    typeof password !== "string" ||
+    password.length < 12 ||
+    password.length > 256
+  ) {
+    throw new Error(
+      "ADMIN_INITIAL_PASSWORD precisa ter entre 12 e 256 caracteres. Configure-a nas variáveis privadas da hospedagem.",
+    );
+  }
+  setSetting("admin", hashPassword(password));
+  return true;
+}
 export function orderView(row, admin = false) {
   if (!row) return null;
   const p = JSON.parse(row.payload);

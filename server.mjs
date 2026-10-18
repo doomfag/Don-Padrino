@@ -11,9 +11,11 @@ import {
   setSetting,
   getSetting,
   verifyPassword,
+  initializeAdmin,
   orderView,
   quote,
 } from "./store.mjs";
+initializeAdmin();
 const root = resolve("public");
 const streams = new Map(),
   adminStreams = new Set(),

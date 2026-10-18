@@ -205,6 +205,10 @@ test("admin: login, configurações, Instagram azul e ausência de overflow", as
   assert.ok(
     !(await page.locator("#informacoes").innerText()).includes("Urucânia"),
   );
+  await expect(page.locator('a[href="/admin"]')).toHaveCount(0);
+  await page.locator(".menu-toggle").click();
+  await expect(page.locator('#overlay-root a[href="/admin"]')).toHaveCount(0);
+  await page.getByRole("button", {name:"Fechar menu"}).click();
   const insta = page.locator("#informacoes .instagram");
   await expect(insta).toHaveAttribute(
     "href",
