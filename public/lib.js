@@ -172,5 +172,5 @@ export function savedOrders() {
   }
 }
 export function instagram(shop) {
-  return `<a class="instagram" href="https://www.instagram.com/${esc(shop.instagram)}/" target="_blank" rel="noopener noreferrer">@${esc(shop.instagram)} ↗</a>`;
+  return `<a class="instagram" href="https://www.instagram.com/${esc(shop.instagram)}/" target="_blank" rel="noopener noreferrer">Instagram: @${esc(shop.instagram)} ↗</a>`;
 }
