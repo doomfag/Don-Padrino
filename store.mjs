@@ -11,7 +11,25 @@ db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, courier TEXT UNIQUE NOT NULL, request_key TEXT UNIQUE NOT NULL, created_at TEXT NOT NULL, status TEXT NOT NULL, payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS users (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
+ name TEXT NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','attendant')),
+ enabled INTEGER NOT NULL DEFAULT 1, manage_orders INTEGER NOT NULL DEFAULT 0,
+ confirm_payments INTEGER NOT NULL DEFAULT 0, must_change_password INTEGER NOT NULL DEFAULT 0,
+ created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id INTEGER, action TEXT NOT NULL, target TEXT NOT NULL, details TEXT NOT NULL, created_at TEXT NOT NULL);
+
 `);
+if (
+  !db
+    .prepare("PRAGMA table_info(sessions)")
+    .all()
+    .some((c) => c.name === "user_id")
+)
+  db.exec(
+    "ALTER TABLE sessions ADD COLUMN user_id INTEGER REFERENCES users(id)",
+  );
 export const catalog = [
   [
     "calabresa",
@@ -142,19 +160,35 @@ export function verifyPassword(password, hash) {
 }
 // The hosting owner supplies this value privately; never log it or expose it to the client.
 export function initializeAdmin(password = process.env.ADMIN_INITIAL_PASSWORD) {
-  if (getSetting("admin") || !password) return false;
+  if (db.prepare("SELECT id FROM users WHERE role='owner'").get()) return false;
+  const legacyHash = getSetting("admin");
+  if (!legacyHash && !password) return false;
   if (
-    typeof password !== "string" ||
-    password.length < 12 ||
-    password.length > 256
-  ) {
+    !legacyHash &&
+    (typeof password !== "string" ||
+      password.length < 12 ||
+      password.length > 256)
+  )
     throw new Error(
       "ADMIN_INITIAL_PASSWORD precisa ter entre 12 e 256 caracteres. Configure-a nas variáveis privadas da hospedagem.",
     );
+  const hash = legacyHash || hashPassword(password);
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.prepare(
+      "INSERT INTO users(username,name,password_hash,role,created_at) VALUES('admin','Proprietário',?,'owner',?)",
+    ).run(hash, new Date().toISOString());
+    // Legacy sessions were owner-only. Expire them during the one-time migration.
+    db.exec("DELETE FROM sessions WHERE user_id IS NULL");
+    setSetting("admin", hash); // Retained for compatibility; authentication uses users only.
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
   }
-  setSetting("admin", hashPassword(password));
-  return true;
+  return !legacyHash;
 }
+
 export function orderView(row, admin = false) {
   if (!row) return null;
   const p = JSON.parse(row.payload);

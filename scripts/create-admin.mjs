@@ -1,6 +1,7 @@
 import { stdin, stdout } from "node:process";
 import { emitKeypressEvents } from "node:readline";
-import { hashPassword, setSetting, db } from "../store.mjs";
+import { db } from "../store.mjs";
+import { resetOwnerPassword } from "../accounts.mjs";
 if (!stdin.isTTY) {
   console.error(
     "Execute em um terminal interativo para cadastrar a senha com segurança.",
@@ -39,10 +40,9 @@ if (password !== (await secret("Confirme a senha: "))) {
   console.error("As senhas não conferem.");
   process.exit(1);
 }
-setSetting("admin", hashPassword(password));
-db.exec("DELETE FROM sessions");
+resetOwnerPassword(password);
 db.close();
 console.log(
-  "Acesso administrativo configurado. Entre em /admin com a senha cadastrada.",
+  "Acesso administrativo configurado. Entre em /admin com o usuário admin e a senha cadastrada.",
 );
 process.exit(0);

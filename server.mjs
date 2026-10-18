@@ -1,3 +1,13 @@
+import {
+  sessionUser,
+  requireUser,
+  userView,
+  listUsers,
+  createUser,
+  updateUser,
+  changePassword,
+  audit,
+} from "./accounts.mjs";
 import { getAvailability } from "./hours.mjs";
 import { postalLookup } from "./postal.mjs";
 import http from "node:http";
@@ -9,7 +19,6 @@ import {
   catalog,
   settings,
   setSetting,
-  getSetting,
   verifyPassword,
   initializeAdmin,
   orderView,
@@ -52,18 +61,16 @@ async function body(req) {
   }
 }
 function auth(req) {
-  const token = (req.headers.cookie || "").match(
-    /(?:^|; )dp_session=([a-f0-9]{64})/,
-  )?.[1];
-  return token &&
-    db
-      .prepare("SELECT token FROM sessions WHERE token=? AND expires>?")
-      .get(token, Date.now())
-    ? token
-    : null;
+  return sessionUser(req)?.token || null;
 }
-function requireAuth(req) {
-  if (!auth(req)) fail("Entre na sua conta para continuar.", 401);
+function closeUserStreams(id) {
+  for (const res of adminStreams) if (res.adminUserId === id) res.end();
+}
+function clearCookie(res) {
+  res.setHeader(
+    "Set-Cookie",
+    `dp_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure ? "; Secure" : ""}`,
+  );
 }
 function originCheck(req) {
   const origin = req.headers.origin;
@@ -101,6 +108,7 @@ function subscribe(req, res, set, initial) {
   });
   res.write(`data: ${JSON.stringify(initial)}\n\n`);
   set.add(res);
+  if (set === adminStreams) res.adminUserId = sessionUser(req)?.id;
   const timer = setInterval(() => {
     if (set === adminStreams && !auth(req)) {
       res.end();
@@ -343,50 +351,96 @@ const server = http.createServer(async (req, res) => {
       }
       return json(res, 200, orderView(row));
     }
-    if (path === "/api/admin/session" && method === "GET")
+    if (path === "/api/admin/session" && method === "GET") {
+      const user = sessionUser(req);
       return json(res, 200, {
-        authenticated: !!auth(req),
-        configured: !!getSetting("admin"),
+        authenticated: !!user,
+        configured: !!db
+          .prepare("SELECT id FROM users WHERE role='owner'")
+          .get(),
+        user: user ? (({ token, ...profile }) => profile)(user) : null,
       });
+    }
     if (path === "/api/admin/login" && method === "POST") {
       limit(req, "login", 5);
-      const { password } = await body(req);
-      const hash = getSetting("admin");
+      const { username = "admin", password } = await body(req);
+      const row = db
+        .prepare("SELECT * FROM users WHERE username=?")
+        .get(String(username).trim().toLowerCase());
+      // Use the owner's salted hash for unknown users to keep password checks comparable.
+      const hash =
+        row?.password_hash ||
+        db.prepare("SELECT password_hash FROM users WHERE role='owner'").get()
+          ?.password_hash;
       if (!hash)
         fail(
-          "O acesso administrativo ainda precisa ser configurado pelo responsável pelo site.",
+          "O acesso administrativo precisa ser configurado pelo responsável pelo site.",
           503,
         );
-      if (
-        typeof password !== "string" ||
-        password.length > 256 ||
-        !verifyPassword(password, hash)
-      )
-        fail("Senha incorreta.", 401);
+      const valid =
+        typeof password === "string" &&
+        password.length <= 256 &&
+        verifyPassword(password, hash);
+      if (!valid || !row?.enabled) fail("Usuário ou senha incorretos.", 401);
       const token = randomBytes(32).toString("hex");
       db.prepare("DELETE FROM sessions WHERE expires<?").run(Date.now());
-      db.prepare("INSERT INTO sessions VALUES(?,?)").run(
-        token,
-        Date.now() + 12 * 3600000,
-      );
+      db.prepare(
+        "INSERT INTO sessions(token,expires,user_id) VALUES(?,?,?)",
+      ).run(token, Date.now() + 12 * 3600000, row.id);
       res.setHeader(
         "Set-Cookie",
         `dp_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200${secure ? "; Secure" : ""}`,
       );
-      return json(res, 200, { ok: true });
+      return json(res, 200, { ok: true, user: userView(row) });
     }
     if (path === "/api/admin/logout" && method === "POST") {
       const session = auth(req);
       if (session)
         db.prepare("DELETE FROM sessions WHERE token=?").run(session);
-      res.setHeader(
-        "Set-Cookie",
-        `dp_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure ? "; Secure" : ""}`,
-      );
+      clearCookie(res);
       return json(res, 200, { ok: true });
     }
     if (path.startsWith("/api/admin/")) {
-      requireAuth(req);
+      if (path === "/api/admin/password" && method === "POST") {
+        limit(req, "password", 5);
+        const input = await body(req),
+          actor = requireUser(req, "password");
+        changePassword(actor, input);
+        closeUserStreams(actor.id);
+        clearCookie(res);
+        return json(res, 200, { ok: true });
+      }
+      const actor = requireUser(req);
+      if (path === "/api/admin/users" && method === "GET") {
+        requireUser(req, "owner");
+        return json(res, 200, listUsers());
+      }
+      if (path === "/api/admin/users" && method === "POST") {
+        const input = await body(req),
+          owner = requireUser(req, "owner");
+        return json(res, 201, createUser(owner, input));
+      }
+      const userMatch = path.match(/^\/api\/admin\/users\/(\d+)$/);
+      if (userMatch && method === "PATCH") {
+        const input = await body(req),
+          owner = requireUser(req, "owner");
+        const user = updateUser(owner, Number(userMatch[1]), input);
+        closeUserStreams(user.id);
+        return json(res, 200, user);
+      }
+      if (path === "/api/admin/audit" && method === "GET") {
+        requireUser(req, "owner");
+        return json(
+          res,
+          200,
+          db
+            .prepare(
+              "SELECT a.id,a.action,a.target,a.details,a.created_at,u.username FROM audit a LEFT JOIN users u ON a.actor_id=u.id ORDER BY a.id DESC LIMIT 100",
+            )
+            .all()
+            .map((r) => ({ ...r, details: JSON.parse(r.details) })),
+        );
+      }
       if (path === "/api/admin/events" && method === "GET")
         return subscribe(req, res, adminStreams, { refresh: true });
       if (path === "/api/admin/orders" && method === "GET")
@@ -396,18 +450,28 @@ const server = http.createServer(async (req, res) => {
           db
             .prepare("SELECT * FROM orders ORDER BY id DESC LIMIT 300")
             .all()
-            .map((r) => orderView(r, true)),
+            .map((r) => orderView(r, actor.permissions.manageOrders)),
         );
-      if (path === "/api/admin/settings" && method === "GET")
+      if (path === "/api/admin/settings" && method === "GET") {
+        requireUser(req, "owner");
         return json(res, 200, settings());
+      }
       if (path === "/api/admin/settings" && method === "PUT") {
-        const shop = validateShop(await body(req));
+        const input = await body(req);
+        requireUser(req, "owner");
+        const shop = validateShop(input);
         setSetting("shop", shop);
+        audit(actor, "shop.updated", "shop");
         return json(res, 200, shop);
       }
       const match = path.match(/^\/api\/admin\/orders\/(\d+)$/);
       if (match && method === "PATCH") {
         const input = await body(req);
+        const currentActor = requireUser(req);
+        if ("paid" in input) requireUser(req, "confirmPayments");
+        if (input.paid === false) requireUser(req, "owner");
+        if ("status" in input || "etaMinutes" in input)
+          requireUser(req, "manageOrders");
         const row = db.prepare("SELECT * FROM orders WHERE id=?").get(match[1]);
         if (!row) fail("Pedido não encontrado.", 404);
         const payload = JSON.parse(row.payload);
@@ -469,7 +533,11 @@ const server = http.createServer(async (req, res) => {
               ).toISOString();
             if (["delivered", "cancelled"].includes(status))
               payload.location = null;
-            payload.history.push({ status, at: new Date().toISOString() });
+            payload.history.push({
+              status,
+              at: new Date().toISOString(),
+              actorId: currentActor.id,
+            });
           }
         }
         if ("etaMinutes" in input) {
@@ -488,8 +556,17 @@ const server = http.createServer(async (req, res) => {
         const updated = db
           .prepare("SELECT * FROM orders WHERE id=?")
           .get(row.id);
+        audit(currentActor, "order.updated", row.id, {
+          status,
+          paid: payload.paid,
+          eta: payload.eta,
+        });
         notify(updated);
-        return json(res, 200, orderView(updated, true));
+        return json(
+          res,
+          200,
+          orderView(updated, currentActor.permissions.manageOrders),
+        );
       }
     }
     const courierMatch = path.match(/^\/api\/courier\/([a-f0-9]{48})$/);
@@ -567,6 +644,7 @@ const server = http.createServer(async (req, res) => {
       ".webp": "image/webp",
       ".svg": "image/svg+xml",
       ".ico": "image/x-icon",
+      ".png": "image/png",
     };
     res.writeHead(200, {
       "Content-Type": types[extname(target)] || "application/octet-stream",

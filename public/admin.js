@@ -1,14 +1,5 @@
-import {
-  $,
-  $$,
-  esc,
-  money,
-  date,
-  api,
-  toast,
-  navigate,
-  statusLabels,
-} from "./lib.js";
+import { renderTeam, renderPassword } from "./team.js";
+import { $, $$, esc, money, date, api, toast, statusLabels } from "./lib.js";
 export async function mountAdmin(main, initialShop, onShopChange) {
   let shop = initialShop,
     orders = [],
@@ -18,21 +9,30 @@ export async function mountAdmin(main, initialShop, onShopChange) {
     filter = "active",
     query = "";
   const session = await api("/api/admin/session");
+  let user = session.user;
+  const canManage = () => !!user?.permissions.manageOrders;
+  const canPay = () => !!user?.permissions.confirmPayments;
   async function login() {
-    main.innerHTML = `<section class="login-panel"><p class="eyebrow">DON PADRINO / GESTÃO</p><h1>Bem-vindo de volta.</h1><p>Seus pedidos, do primeiro clique à última entrega.</p>${session.configured ? `<form id="login-form"><div class="field"><label for="admin-password">Senha de administrador</label><input id="admin-password" type="password" autocomplete="current-password" required maxlength="256"></div><p class="form-error error" id="login-error" role="alert"></p><button class="primary green" type="submit">ENTRAR NO PAINEL <span class="arrow">↗</span></button></form>` : '<div class="notice">O acesso administrativo precisa ser ativado pelo responsável pela instalação. Nenhuma senha padrão é utilizada.</div>'}<a class="back-link" href="/" style="margin-top:25px;margin-bottom:0">← Voltar para a pizzaria</a></section>`;
+    source?.close();
+    main.innerHTML = `<section class="login-panel"><p class="eyebrow">DON PADRINO / GESTÃO</p><h1>Bem-vindo de volta.</h1><p>Seus pedidos, do primeiro clique à última entrega.</p>${session.configured ? `<form id="login-form"><div class="field"><label for="admin-username">Usuário</label><input id="admin-username" value="admin" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="40"></div><div class="field"><label for="admin-password">Senha</label><input id="admin-password" type="password" autocomplete="current-password" required maxlength="256"></div><p class="form-error error" id="login-error" role="alert"></p><button class="primary green" type="submit">ENTRAR NO PAINEL <span class="arrow">↗</span></button></form>` : '<div class="notice">O acesso administrativo precisa ser ativado pelo responsável pela instalação. Nenhuma senha padrão é utilizada.</div>'}<a class="back-link" href="/" style="margin-top:25px;margin-bottom:0">← Voltar para a pizzaria</a></section>`;
     if ($("#login-form"))
       $("#login-form").onsubmit = async (e) => {
         e.preventDefault();
         const button = $("#login-form button");
         button.disabled = true;
         try {
-          await api("/api/admin/login", {
+          const result = await api("/api/admin/login", {
             method: "POST",
-            body: JSON.stringify({ password: $("#admin-password").value }),
+            body: JSON.stringify({
+              username: $("#admin-username").value,
+              password: $("#admin-password").value,
+            }),
           });
+          user = result.user;
           await dashboard();
         } catch (err) {
-          $("#login-error").textContent = err.message;
+          if ($("#login-error")) $("#login-error").textContent = err.message;
+          else toast(err.message);
           button.disabled = false;
         }
       };
@@ -46,8 +46,21 @@ export async function mountAdmin(main, initialShop, onShopChange) {
     if (!disposed && tab === "orders" && changed) renderOrderList();
   }
   async function dashboard() {
-    shop = await api("/api/admin/settings");
-    main.innerHTML = `<section class="page-shell"><div class="admin-top"><div><p class="eyebrow">DON PADRINO / GESTÃO</p><h1>À frente da cozinha.</h1></div><div><a class="outline" href="/">VER SITE ↗</a> <button class="outline" id="admin-logout">SAIR</button></div></div><div class="admin-tabs" role="group" aria-label="Área do painel"><button data-admin-tab="orders" class="active">Pedidos</button><button data-admin-tab="settings">Configurações</button></div><div id="admin-content"></div></section>`;
+    source?.close();
+    tab = "orders";
+    orders = [];
+    if (user.mustChangePassword) {
+      main.innerHTML =
+        '<section class="page-shell"><div id="admin-content"></div><button class="outline" id="temporary-logout">SAIR</button></section>';
+      renderPassword($("#admin-content"), true, login);
+      $("#temporary-logout").onclick = async () => {
+        await api("/api/admin/logout", { method: "POST", body: "{}" });
+        await login();
+      };
+      return;
+    }
+    if (user.role === "owner") shop = await api("/api/admin/settings");
+    main.innerHTML = `<section class="page-shell"><div class="admin-top"><div><p class="eyebrow">DON PADRINO / GESTÃO</p><h1>À frente da cozinha.</h1><p class="hint">${esc(user.name)} · ${esc(user.username)} · ${user.role === "owner" ? "Proprietário" : "Atendente"}</p></div><div><a class="outline" href="/">VER SITE ↗</a> <button class="outline" id="admin-logout">SAIR</button></div></div><div class="admin-tabs" role="group" aria-label="Área do painel"><button data-admin-tab="orders" class="active">Pedidos</button>${user.role === "owner" ? '<button data-admin-tab="settings">Configurações</button><button data-admin-tab="team">Equipe</button>' : ""}<button data-admin-tab="password">Minha senha</button></div><div id="admin-content"></div></section>`;
     $("#admin-logout").onclick = async () => {
       try {
         await api("/api/admin/logout", { method: "POST", body: "{}" });
@@ -68,7 +81,11 @@ export async function mountAdmin(main, initialShop, onShopChange) {
           if (tab === "orders") {
             renderOrdersShell();
             fetchOrders().catch((e) => toast(e.message));
-          } else renderSettings();
+          } else if (tab === "settings") renderSettings();
+          else if (tab === "team") {
+            $("#admin-content").innerHTML = '<div id="team-content"></div>';
+            renderTeam($("#team-content"));
+          } else renderPassword($("#admin-content"), false, login);
         }),
     );
     renderOrdersShell();
@@ -83,7 +100,20 @@ export async function mountAdmin(main, initialShop, onShopChange) {
           login();
         }
       });
-    source.onerror = () => {
+    source.onerror = async () => {
+      try {
+        const current = await api("/api/admin/session");
+        if (!current.authenticated) {
+          source?.close();
+          if (!disposed) {
+            toast("Sua sessão foi encerrada. Entre novamente.");
+            await login();
+          }
+          return;
+        }
+      } catch {
+        /* Native EventSource retries temporary network failures. */
+      }
       const el = $("#admin-connection");
       if (el) el.textContent = "Reconectando ao painel…";
     };
@@ -136,7 +166,7 @@ export async function mountAdmin(main, initialShop, onShopChange) {
       ? selected
           .map(
             (o) =>
-              `<article class="admin-order" data-order-id="${o.id}"><div class="admin-order-top"><div><h3>${esc(o.number)} · ${esc(o.name)}</h3><p>${date(o.createdAt)} · ${o.fulfillment === "pickup" ? "Retirada no Portão" : "Entrega"}</p><span class="status-label">${esc(statusLabels[o.status])}</span></div><div><strong>${money(o.total)}</strong><span class="status-label ${o.paid ? "paid" : "unpaid"}">${o.paid ? "Pagamento recebido" : "Pagamento pendente"}</span></div></div><div class="admin-order-items">${o.items.map((i) => `<p>${i.quantity}× ${esc(i.name)} · ${money(i.price * i.quantity)}${i.note ? `<br><small class="muted">↳ ${esc(i.note)}</small>` : ""}</p>`).join("")}</div><div class="admin-order-meta">${o.address ? `${esc(o.address.street)}, ${esc(o.address.number)} — ${esc(o.address.district)}, ${esc(o.address.city)} · CEP ${esc(o.address.postalCode)}<br>Referência: ${esc(o.address.reference)}<br>` : ""}${esc(o.payment)}${o.change ? ` · Troco para ${money(o.change)}` : ""} · Entrega: ${o.fee ? money(o.fee) : "Grátis"}<br><a class="tracking-link" href="https://wa.me/55${esc(o.phone)}" target="_blank" rel="noopener noreferrer">WhatsApp do cliente ↗</a> &nbsp; <a class="tracking-link" href="/pedido/${o.token}" target="_blank" rel="noopener noreferrer">Acompanhamento ↗</a>${o.eta ? `<br>Previsão: ${date(o.eta)}` : ""}</div><div class="admin-actions">${!["delivered", "cancelled"].includes(o.status) ? `${!o.paid ? `<button class="primary green" data-paid="${o.id}">CONFIRMAR PAGAMENTO</button>` : ""}${o.paid && o.status === "awaiting_payment" ? `<button class="primary green" data-status="preparing" data-id="${o.id}">INICIAR PREPARO</button>` : ""}${o.status === "preparing" ? `<button class="primary green" data-status="ready" data-id="${o.id}">PEDIDO PRONTO</button>` : ""}${o.status === "ready" ? `<button class="primary green" data-status="${o.fulfillment === "pickup" ? "delivered" : "out_for_delivery"}" data-id="${o.id}">${o.fulfillment === "pickup" ? "CONFIRMAR RETIRADA" : "ENTREGUE AO ENTREGADOR"}</button>` : ""}${o.status === "out_for_delivery" ? `<button class="primary green" data-status="delivered" data-id="${o.id}">CONFIRMAR ENTREGA</button><button class="outline" data-courier="${o.courierToken}">COPIAR LINK DO ENTREGADOR ↗</button>` : ""}<label for="eta-${o.id}" class="sr-only">Previsão em minutos</label><input id="eta-${o.id}" type="number" min="0" max="240" placeholder="Min" aria-label="Previsão em minutos"><button class="outline" data-eta="${o.id}">DEFINIR PREVISÃO</button><button class="inline-button danger-text" data-cancel="${o.id}">Cancelar pedido</button>` : ""}${o.status === "cancelled" && o.paid ? '<p class="hint">Pagamento confirmado antes do cancelamento. Confira se há reembolso a combinar.</p>' : ""}</div><p class="form-error error" data-error-for="${o.id}" role="alert"></p></article>`,
+              `<article class="admin-order" data-order-id="${o.id}"><div class="admin-order-top"><div><h3>${esc(o.number)} · ${esc(o.name)}</h3><p>${date(o.createdAt)} · ${o.fulfillment === "pickup" ? "Retirada no Portão" : "Entrega"}</p><span class="status-label">${esc(statusLabels[o.status])}</span></div><div><strong>${money(o.total)}</strong><span class="status-label ${o.paid ? "paid" : "unpaid"}">${o.paid ? "Pagamento recebido" : "Pagamento pendente"}</span></div></div><div class="admin-order-items">${o.items.map((i) => `<p>${i.quantity}× ${esc(i.name)} · ${money(i.price * i.quantity)}${i.note ? `<br><small class="muted">↳ ${esc(i.note)}</small>` : ""}</p>`).join("")}</div><div class="admin-order-meta">${o.address ? `${esc(o.address.street)}, ${esc(o.address.number)} — ${esc(o.address.district)}, ${esc(o.address.city)} · CEP ${esc(o.address.postalCode)}<br>Referência: ${esc(o.address.reference)}<br>` : ""}${esc(o.payment)}${o.change ? ` · Troco para ${money(o.change)}` : ""} · Entrega: ${o.fee ? money(o.fee) : "Grátis"}<br><a class="tracking-link" href="https://wa.me/55${esc(o.phone)}" target="_blank" rel="noopener noreferrer">WhatsApp do cliente ↗</a> &nbsp; <a class="tracking-link" href="/pedido/${o.token}" target="_blank" rel="noopener noreferrer">Acompanhamento ↗</a>${o.eta ? `<br>Previsão: ${date(o.eta)}` : ""}</div><div class="admin-actions">${!["delivered", "cancelled"].includes(o.status) ? `${canPay() && !o.paid ? `<button class="primary green" data-paid="${o.id}">CONFIRMAR PAGAMENTO</button>` : ""}${canManage() && o.paid && o.status === "awaiting_payment" ? `<button class="primary green" data-status="preparing" data-id="${o.id}">INICIAR PREPARO</button>` : ""}${canManage() && o.status === "preparing" ? `<button class="primary green" data-status="ready" data-id="${o.id}">PEDIDO PRONTO</button>` : ""}${canManage() && o.status === "ready" ? `<button class="primary green" data-status="${o.fulfillment === "pickup" ? "delivered" : "out_for_delivery"}" data-id="${o.id}">${o.fulfillment === "pickup" ? "CONFIRMAR RETIRADA" : "ENTREGUE AO ENTREGADOR"}</button>` : ""}${canManage() && o.status === "out_for_delivery" ? `<button class="primary green" data-status="delivered" data-id="${o.id}">CONFIRMAR ENTREGA</button><button class="outline" data-courier="${o.courierToken}">COPIAR LINK DO ENTREGADOR ↗</button>` : ""}${canManage() ? `<label for="eta-${o.id}" class="sr-only">Previsão em minutos</label><input id="eta-${o.id}" type="number" min="0" max="240" placeholder="Min" aria-label="Previsão em minutos"><button class="outline" data-eta="${o.id}">DEFINIR PREVISÃO</button><button class="inline-button danger-text" data-cancel="${o.id}">Cancelar pedido</button>` : ""}` : ""}${o.status === "cancelled" && o.paid ? '<p class="hint">Pagamento confirmado antes do cancelamento. Confira se há reembolso a combinar.</p>' : ""}</div><p class="form-error error" data-error-for="${o.id}" role="alert"></p></article>`,
           )
           .join("")
       : '<div class="no-orders">Nenhum pedido nesta seleção.</div>';

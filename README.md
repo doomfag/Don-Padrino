@@ -38,7 +38,7 @@ O painel não tem link no menu nem no rodapé públicos. O endereço direto é `
 
 1. No serviço Don-Padrino, abra **Variáveis** e adicione **`ADMIN_INITIAL_PASSWORD`** com uma senha pessoal de 12 a 256 caracteres. Cadastre o valor somente no painel privado do Railway, nunca no chat, Git ou arquivos públicos. Use uma senha longa e exclusiva.
 2. Aplique as alterações com **Deploy**. Na primeira inicialização, se ainda não houver administrador, a aplicação salva somente o hash scrypt da senha no SQLite do volume `DATA_DIR`.
-3. Acesse `https://seu-endereco/admin` e entre com a senha cadastrada.
+3. Acesse `https://don-padrino-production.up.railway.app/admin` no computador e entre com o usuário **`admin`** e a senha cadastrada. Salve esse endereço nos favoritos.
 4. Após confirmar o acesso, remova a variável `ADMIN_INITIAL_PASSWORD` do Railway e aplique a alteração. O hash permanece no volume e o login continua funcionando.
 
 Essa variável **não redefine uma senha já cadastrada**, mesmo em novos deploys. Para recuperar ou redefinir o acesso existente, use o comando de terminal abaixo no mesmo volume de dados. Não crie outra cópia vazia do banco para alterar a senha.
@@ -51,7 +51,25 @@ Em um terminal privado, na pasta do projeto:
 npm run admin:create
 ```
 
-Cadastre uma senha com pelo menos 12 caracteres. A digitação é oculta e somente o hash com salt/scrypt é armazenado. Não existe senha padrão. Acesse a rota **`/admin`** e use a senha cadastrada. O mesmo comando redefine a senha e encerra as sessões anteriores. Não coloque a senha em chat, Git, argumentos de linha de comando ou scripts de instalação.
+Cadastre uma senha com pelo menos 12 caracteres. A digitação é oculta e somente o hash com salt/scrypt é armazenado. Não existe senha padrão. Acesse a rota **`/admin`** com o usuário **`admin`** e a senha cadastrada. O mesmo comando recupera o acesso do proprietário e encerra somente as sessões dessa conta; os acessos da equipe continuam independentes. Não coloque a senha em chat, Git, argumentos de linha de comando ou scripts de instalação.
+
+### O que guardar e como acessar novamente
+
+Guarde no seu gerenciador de senhas o endereço `https://don-padrino-production.up.railway.app/admin`, o usuário `admin` e sua senha pessoal. No computador, abra esse endereço no navegador, preencha os dois campos e clique em **Entrar no painel**. A sessão dura até 12 horas; use **Sair** ao terminar em um computador compartilhado. Para mudar a senha depois, use **Minha senha**. Não é necessário deixar a variável de inicialização na hospedagem depois do primeiro acesso confirmado.
+
+Se aparecer “Usuário ou senha incorretos” mesmo após definir a variável, já havia uma conta nesse volume: a variável não substitui uma senha existente. Recupere pelo terminal privado no mesmo volume de dados com `npm run admin:create`; não apague o banco nem o volume. Preserve também seus acessos ao Railway e GitHub para manutenção e recuperação.
+
+### Contas individuais para atendentes
+
+1. Entre como proprietário e abra **Equipe**.
+2. Cadastre nome, usuário exclusivo e senha temporária de pelo menos 12 caracteres.
+3. Marque separadamente **Alterar etapas, previsão e cancelar pedidos** e/ou **Confirmar pagamentos recebidos**. Sem marcar nenhuma, a conta somente consulta os pedidos e seus valores.
+4. Clique em **Criar conta** e forneça o endereço `/admin`, usuário e senha temporária por um canal privado. A atendente precisa criar uma senha pessoal antes de consultar os pedidos. Ela entra novamente após a troca.
+5. Para suspender o acesso, desmarque **Conta ativa** e salve. Para recuperar a senha de uma atendente, informe uma nova senha temporária e salve. Qualquer alteração de acesso encerra imediatamente as sessões dessa conta; as outras permanecem conectadas.
+
+Somente o proprietário gerencia contas e configurações. A atendente não pode se promover a proprietária nem alterar outros acessos. Confirmação de pagamentos e operação dos pedidos são permissões independentes, verificadas no servidor. O painel do proprietário mostra as últimas 100 alterações de contas, configurações e pedidos, com usuário e horário. A senha de outra pessoa nunca é exibida; só pode ser redefinida. Não existe cadastro público nem conta de cliente.
+
+Ao atualizar uma instalação antiga, a senha administrativa existente é preservada e associada automaticamente ao usuário `admin`. As sessões antigas sem usuário são encerradas uma única vez. Pedidos, configurações e dados do volume são mantidos.
 
 No painel você pode:
 
@@ -124,7 +142,7 @@ Use um host com Node.js 24.5+, processo persistente e **disco/volume persistente
 4. Inicie com `npm start` usando o gerenciador de processos da hospedagem.
 5. Permita conexões de saída a `viacep.com.br`. O navegador precisa acessar `www.openstreetmap.org` para exibir o mapa; os links externos usam `wa.me` e `www.instagram.com`.
 6. O proxy deve manter SSE sem buffering e sem cache nas rotas `/api`. Um timeout maior que 60 s é recomendado; há heartbeat a cada 20 s.
-7. Faça backup consistente do SQLite em `DATA_DIR` (API de backup SQLite, ou serviço parado com os arquivos SQLite/WAL). Preserve esse volume ao atualizar o código. Ele contém dados pessoais de clientes e o hash administrativo; não deve ser servido publicamente.
+7. Faça backup consistente do SQLite em `DATA_DIR` (API de backup SQLite, ou serviço parado com os arquivos SQLite/WAL). Preserve esse volume ao atualizar o código. Ele contém dados pessoais de clientes e os hashes das senhas e registros de acesso; não deve ser servido publicamente.
 8. Faça um pedido de retirada e de entrega no domínio real, confirme o pagamento manualmente e teste o GPS em um celular do entregador antes de abrir vendas.
 
 Não publique a pasta `data`, não compartilhe links privados de clientes ou entregadores e proteja o acesso ao painel. A política de privacidade básica está em `/privacidade` e deve ser mantida conforme a operação real.

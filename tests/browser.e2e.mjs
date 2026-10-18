@@ -208,7 +208,7 @@ test("admin: login, configurações, Instagram azul e ausência de overflow", as
   await expect(page.locator('a[href="/admin"]')).toHaveCount(0);
   await page.locator(".menu-toggle").click();
   await expect(page.locator('#overlay-root a[href="/admin"]')).toHaveCount(0);
-  await page.getByRole("button", {name:"Fechar menu"}).click();
+  await page.getByRole("button", { name: "Fechar menu" }).click();
   const insta = page.locator("#informacoes .instagram");
   await expect(insta).toHaveAttribute(
     "href",
@@ -382,4 +382,67 @@ test("quatro bebidas têm fotos e Zero/Fanta entram no carrinho e na mensagem de
   assert.match(message, /Fanta Laranja 2L/);
   assert.match(message, /27,00/);
   await page.close();
+});
+
+test("equipe: proprietário cria atendente e primeiro acesso exige senha pessoal", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
+  });
+  await page
+    .context()
+    .addCookies([
+      { name: "dp_session", value: adminCookie.split("=")[1], url: base },
+    ]);
+  await page.goto(base + "/admin");
+  await page.getByRole("button", { name: "Equipe", exact: true }).click();
+  await page.locator("#new-user-name").fill("Bia Atendimento");
+  await page.locator("#new-user-login").fill("bia");
+  await page.locator("#new-user-password").fill("fixture-bia-temporary-pass");
+  await page.getByRole("button", { name: "CRIAR CONTA", exact: true }).click();
+  await expect(page.locator("#team-list")).toContainText("bia · Ativa");
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    ),
+    false,
+  );
+  await page.close();
+  const staff = await browser.newPage({
+    viewport: { width: 1280, height: 720 },
+    reducedMotion: "reduce",
+  });
+  await staff.goto(base + "/admin");
+  await staff.locator("#admin-username").fill("bia");
+  await staff.locator("#admin-password").fill("fixture-bia-temporary-pass");
+  await staff.locator("#login-form button").click();
+  await expect(
+    staff.getByRole("heading", { name: "Crie sua senha pessoal" }),
+  ).toBeVisible();
+  await expect(staff.locator("#admin-orders")).toHaveCount(0);
+  await staff.locator("#current-password").fill("fixture-bia-temporary-pass");
+  await staff.locator("#new-password").fill("fixture-bia-personal-pass");
+  await staff.locator("#confirm-password").fill("fixture-bia-personal-pass");
+  await staff.getByRole("button", { name: "SALVAR NOVA SENHA" }).click();
+  await expect(staff.locator("#login-form")).toBeVisible();
+  await staff.locator("#admin-username").fill("bia");
+  await staff.locator("#admin-password").fill("fixture-bia-personal-pass");
+  await staff.locator("#login-form button").click();
+  await expect(staff.locator("#admin-orders")).toBeVisible();
+  await expect(
+    staff.getByRole("button", { name: "Equipe", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    staff.getByRole("button", { name: "Configurações", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    staff.locator("[data-paid], [data-status], [data-eta], [data-cancel]"),
+  ).toHaveCount(0);
+  await admin(
+    `/api/admin/users/${(await admin("/api/admin/users")).find((u) => u.username === "bia").id}`,
+    "PATCH",
+    { enabled: false },
+  );
+  await expect(staff.locator("#login-form")).toBeVisible();
+  await staff.close();
 });
