@@ -2378,3 +2378,50 @@ body {
     position: static;
   }
 }
+.store-availability {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 8px 18px;
+  background: #151710;
+  border-bottom: 1px solid #302e22;
+  font-size: 11px;
+  color: #c7b68f;
+}
+.store-availability[hidden] {
+  display: none;
+}
+.availability-dot {
+  width: 5px;
+  height: 5px;
+  background: #b9a375;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.store-availability.is-open {
+  background: #101b13;
+  border-bottom-color: #233925;
+  color: #afcba4;
+}
+.is-open .availability-dot {
+  background: #92bd85;
+}
+.store-availability a {
+  font-size: 10px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin-left: 10px;
+  color: var(--muted);
+}
+@media (max-width: 370px) {
+  .store-availability {
+    font-size: 10px;
+    gap: 7px;
+    padding: 8px 12px;
+  }
+  .store-availability a {
+    margin-left: 3px;
+  }
+}

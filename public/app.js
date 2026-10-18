@@ -16,6 +16,9 @@ const main = $("#main");
 let products = [],
   shop = {},
   open = false,
+  availability = null,
+  availabilityTimer,
+  availabilityRequest = null,
   slide = 0,
   slideTimer,
   cleanupPage = () => {},
@@ -48,6 +51,81 @@ let draft = {
   requestKey = null,
   submitting = false;
 const count = () => cart.reduce((s, i) => s + i.quantity, 0);
+function updateAvailabilityUI() {
+  const banner = $("#store-availability");
+  banner.hidden = location.pathname !== "/";
+  banner.classList.toggle("is-open", open);
+  $("#availability-label").textContent =
+    availability?.shortLabel || "Consultando atendimento…";
+  $$("[data-store-status]").forEach((el) => {
+    el.className = open ? "store-open" : "store-closed";
+    el.textContent = `● ${availability?.shortLabel || "Consultando atendimento…"}`;
+  });
+  const notice = $("#checkout-availability");
+  if (notice) {
+    notice.hidden = open;
+    notice.textContent =
+      availability?.message ||
+      "Não foi possível confirmar o atendimento. Verifique a conexão e tente novamente.";
+  }
+  const button = $("#submit-order");
+  if (button) {
+    button.disabled = submitting || !open || !quoteResult;
+    if (!submitting)
+      button.innerHTML = open
+        ? 'FINALIZAR PEDIDO <span class="arrow">↗</span>'
+        : "FECHADO NO MOMENTO";
+  }
+}
+function applyAvailability(state) {
+  availability = state;
+  open = state.open;
+  clearTimeout(availabilityTimer);
+  const transition = state.open ? state.nextCloseAt : state.nextOpenAt;
+  if (transition) {
+    const delay = new Date(transition) - new Date(state.serverNow);
+    if (delay > 0)
+      availabilityTimer = setTimeout(
+        () => {
+          // Close immediately when the known deadline arrives, even if the connection drops.
+          if (open)
+            markAvailabilityUnknown("Fechado · verificando próxima abertura…");
+          refreshAvailability().catch(markAvailabilityUnknown);
+        },
+        Math.min(delay + 50, 2147483647),
+      );
+  }
+  updateAvailabilityUI();
+}
+function markAvailabilityUnknown(label) {
+  open = false;
+  availability = {
+    open: false,
+    shortLabel:
+      typeof label === "string"
+        ? label
+        : "Verifique sua conexão para confirmar o atendimento",
+    message:
+      typeof label === "string"
+        ? "Estamos fechados agora. Recebemos pedidos de quinta a domingo, das 18h à meia-noite. Seu carrinho continua salvo."
+        : "Não foi possível confirmar o atendimento. Reconecte para verificar o horário de abertura.",
+  };
+  updateAvailabilityUI();
+}
+async function refreshAvailability() {
+  if (!availabilityRequest)
+    availabilityRequest = api("/api/availability", {
+      signal: AbortSignal.timeout(10000),
+    })
+      .then((state) => {
+        applyAvailability(state);
+        return state;
+      })
+      .finally(() => {
+        availabilityRequest = null;
+      });
+  return availabilityRequest;
+}
 function saveCart() {
   try {
     localStorage.setItem("dp-cart", JSON.stringify(cart));
@@ -116,7 +194,7 @@ function renderHome() {
     )
     .join(
       "",
-    )}${!shop.drinksConfirmed ? '<p class="hint">Disponibilidade e preços em confirmação.</p>' : ""}<button class="outline" data-action="cart">VER MEU PEDIDO <span class="arrow">↗</span></button></article></div></section><section id="informacoes" class="section info-section"><div class="info-inner"><p class="eyebrow">02 / INFORMAÇÕES</p><h2>Entrega ou retirada.</h2><div class="info-grid"><div><h3>Da nossa casa para a sua.</h3><p>${esc(shop.address)}<br>CEP ${esc(shop.postalCode)}</p><p>Consulte a disponibilidade pelo CEP.<br>A taxa aparece no pedido antes de finalizar.</p><span class="${open ? "store-open" : "store-closed"}">● ${open ? "Estamos abertos para pedidos" : "Fechado agora — confira nosso horário"}</span></div><div><h3>O seu próximo encontro tem pizza.</h3><p>${esc(shop.hours)}<br>Horário de Brasília.</p><p><a href="https://wa.me/${shop.whatsapp}" target="_blank" rel="noopener noreferrer">WhatsApp (21) 99456-8096 ↗</a></p><p>${instagram(shop)}</p></div></div><div class="info-cnpj"><span>DON PADRINO PIZZARIA · CNPJ ${esc(shop.cnpj)}</span><div><a href="/privacidade">Privacidade</a> &nbsp; · &nbsp; <a href="/admin">Área administrativa</a></div></div></div></section>`;
+    )}${!shop.drinksConfirmed ? '<p class="hint">Disponibilidade e preços em confirmação.</p>' : ""}<button class="outline" data-action="cart">VER MEU PEDIDO <span class="arrow">↗</span></button></article></div></section><section id="informacoes" class="section info-section"><div class="info-inner"><p class="eyebrow">02 / INFORMAÇÕES</p><h2>Entrega ou retirada.</h2><div class="info-grid"><div><h3>Da nossa casa para a sua.</h3><p>${esc(shop.address)}<br>CEP ${esc(shop.postalCode)}</p><p>Consulte a disponibilidade pelo CEP.<br>A taxa aparece no pedido antes de finalizar.</p><span data-store-status class="${open ? "store-open" : "store-closed"}">● ${esc(availability?.shortLabel || "Consultando horário…")}</span></div><div><h3>O seu próximo encontro tem pizza.</h3><p>${esc(shop.hours)}<br>Horário de Brasília.</p><p><a href="https://wa.me/${shop.whatsapp}" target="_blank" rel="noopener noreferrer">WhatsApp (21) 99456-8096 ↗</a></p><p>${instagram(shop)}</p></div></div><div class="info-cnpj"><span>DON PADRINO PIZZARIA · CNPJ ${esc(shop.cnpj)}</span><div><a href="/privacidade">Privacidade</a> &nbsp; · &nbsp; <a href="/admin">Área administrativa</a></div></div></div></section>`;
   const hero = $(".hero");
   let paused = false;
   const pause = () => {
@@ -219,7 +297,7 @@ function showCart() {
     return;
   }
   const dialog = overlay(
-    `<div class="drawer-head"><h2>Seu pedido</h2><button class="icon-button" data-close aria-label="Fechar pedido">×</button></div><div id="cart-items">${cartItemsHtml()}</div><div class="tabs" role="group" aria-label="Tipo de pedido"><button data-fulfillment="pickup" class="${draft.fulfillment === "pickup" ? "active" : ""}" aria-pressed="${draft.fulfillment === "pickup"}">Retirada</button><button data-fulfillment="delivery" class="${draft.fulfillment === "delivery" ? "active" : ""}" aria-pressed="${draft.fulfillment === "delivery"}">Entrega</button></div><form id="checkout-form">${draft.fulfillment === "pickup" ? `<p class="checkout-pickup">Retirada no Portão<br>${esc(shop.address)}<br>CEP ${esc(shop.postalCode)}</p>` : deliveryFields()}<div class="field"><label for="name">Nome *</label><input id="name" name="name" value="${esc(draft.name)}" autocomplete="name" minlength="2" maxlength="80" required placeholder="Como podemos te chamar?"></div><div class="field"><label for="phone">WhatsApp *</label><input id="phone" name="phone" value="${esc(draft.phone)}" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="16" required placeholder="(21) 99999-9999"></div><label>Forma de pagamento · confirmar no WhatsApp</label><div class="payment-options">${["Pix", "Cartão", "Dinheiro"].map((p) => `<label><input type="radio" name="payment" value="${p}" ${draft.payment === p ? "checked" : ""}><span>${p}</span></label>`).join("")}</div><div id="change-field" ${draft.payment === "Dinheiro" ? "" : "hidden"}><div class="field"><label for="change">Troco para quanto? (opcional)</label><input id="change" name="change" inputmode="decimal" value="${esc(draft.change)}" placeholder="Ex.: 100,00"></div></div><div class="summary"><div class="summary-row"><span>Subtotal</span><span id="summary-subtotal">${money(cartSubtotal())}</span></div><div class="summary-row"><span>Entrega</span><span id="summary-fee">${draft.fulfillment === "pickup" ? "Retirada gratuita" : "Informe o CEP"}</span></div><div class="summary-row total"><strong>Total</strong><strong id="summary-total">${money(cartSubtotal())}</strong></div><p id="quote-message" class="quote-message"></p><p class="form-error error" id="checkout-error" role="alert"></p>${!open ? `<p class="notice">Fechado agora. ${esc(shop.hours)}</p>` : ""}<button class="primary" type="submit" id="submit-order" ${open ? "" : "disabled"}>FINALIZAR PEDIDO <span class="arrow">↗</span></button><p class="hint">Seu pedido é registrado sem cadastro. Na próxima tela, abra o WhatsApp para combinar o pagamento.</p><a class="privacy-link" href="/privacidade">Como usamos seus dados</a></div></form>`,
+    `<div class="drawer-head"><h2>Seu pedido</h2><button class="icon-button" data-close aria-label="Fechar pedido">×</button></div><div id="cart-items">${cartItemsHtml()}</div><div class="tabs" role="group" aria-label="Tipo de pedido"><button data-fulfillment="pickup" class="${draft.fulfillment === "pickup" ? "active" : ""}" aria-pressed="${draft.fulfillment === "pickup"}">Retirada</button><button data-fulfillment="delivery" class="${draft.fulfillment === "delivery" ? "active" : ""}" aria-pressed="${draft.fulfillment === "delivery"}">Entrega</button></div><form id="checkout-form">${draft.fulfillment === "pickup" ? `<p class="checkout-pickup">Retirada no Portão<br>${esc(shop.address)}<br>CEP ${esc(shop.postalCode)}</p>` : deliveryFields()}<div class="field"><label for="name">Nome *</label><input id="name" name="name" value="${esc(draft.name)}" autocomplete="name" minlength="2" maxlength="80" required placeholder="Como podemos te chamar?"></div><div class="field"><label for="phone">WhatsApp *</label><input id="phone" name="phone" value="${esc(draft.phone)}" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="16" required placeholder="(21) 99999-9999"></div><label>Forma de pagamento · confirmar no WhatsApp</label><div class="payment-options">${["Pix", "Cartão", "Dinheiro"].map((p) => `<label><input type="radio" name="payment" value="${p}" ${draft.payment === p ? "checked" : ""}><span>${p}</span></label>`).join("")}</div><div id="change-field" ${draft.payment === "Dinheiro" ? "" : "hidden"}><div class="field"><label for="change">Troco para quanto? (opcional)</label><input id="change" name="change" inputmode="decimal" value="${esc(draft.change)}" placeholder="Ex.: 100,00"></div></div><div class="summary"><div class="summary-row"><span>Subtotal</span><span id="summary-subtotal">${money(cartSubtotal())}</span></div><div class="summary-row"><span>Entrega</span><span id="summary-fee">${draft.fulfillment === "pickup" ? "Retirada gratuita" : "Informe o CEP"}</span></div><div class="summary-row total"><strong>Total</strong><strong id="summary-total">${money(cartSubtotal())}</strong></div><p id="quote-message" class="quote-message"></p><p class="form-error error" id="checkout-error" role="alert"></p><p class="notice" id="checkout-availability" ${open ? "hidden" : ""}>${esc(availability?.message || "Consultando disponibilidade de atendimento…")}</p><button class="primary" type="submit" id="submit-order" ${open ? "" : "disabled"}>FINALIZAR PEDIDO <span class="arrow">↗</span></button><p class="hint">Seu pedido é registrado sem cadastro. Na próxima tela, abra o WhatsApp para combinar o pagamento.</p><a class="privacy-link" href="/privacidade">Como usamos seus dados</a></div></form>`,
   );
   $("#checkout-form").addEventListener("input", (e) => {
     if (e.target.name) {
@@ -250,6 +328,7 @@ function showCart() {
         showCart();
       }),
   );
+  updateAvailabilityUI();
   refreshQuote();
 }
 async function lookupPostal() {
@@ -320,7 +399,7 @@ async function refreshQuote() {
       ? `Taxa de entrega incluída no total.`
       : "";
     $("#quote-message").classList.remove("error-text");
-    $("#submit-order").disabled = !open;
+    updateAvailabilityUI();
   } catch (err) {
     if (revision !== quoteRevision || !$("#quote-message")) return;
     $("#quote-message").textContent = err.message;
@@ -341,6 +420,8 @@ async function submitOrder(e) {
   button.disabled = true;
   button.textContent = "REGISTRANDO PEDIDO…";
   try {
+    await refreshAvailability();
+    if (!open) return;
     requestKey ||= crypto.randomUUID();
     const change = draft.change
       ? Math.round(Number(draft.change.replace(",", ".")) * 100)
@@ -367,11 +448,12 @@ async function submitOrder(e) {
     closeOverlay();
     navigate(`/pedido/${order.token}`);
   } catch (err) {
-    $("#checkout-error").textContent = err.message;
-    button.disabled = false;
-    button.innerHTML = 'TENTAR NOVAMENTE <span class="arrow">↗</span>';
+    if (err.availability) applyAvailability(err.availability);
+    else if (!err.status) markAvailabilityUnknown();
+    if ($("#checkout-error")) $("#checkout-error").textContent = err.message;
   } finally {
     submitting = false;
+    updateAvailabilityUI();
   }
 }
 function showMenu() {
@@ -394,7 +476,7 @@ async function route() {
   try {
     const fresh = await api("/api/menu");
     shop = fresh.shop;
-    open = fresh.open;
+    applyAvailability(fresh.availability);
     if (location.pathname === "/admin") {
       setTab("");
       const { mountAdmin } = await import("./admin.js");
@@ -422,6 +504,7 @@ async function route() {
       main.innerHTML =
         '<section class="page-shell narrow"><h1>Página não encontrada.</h1><a class="outline" href="/">VOLTAR AO INÍCIO ↗</a></section>';
     }
+    updateAvailabilityUI();
   } catch (err) {
     main.innerHTML = `<section class="page-shell narrow"><h1>Não foi possível abrir esta página.</h1><p class="error">${esc(err.message)}</p><a class="outline" href="/">VOLTAR AO INÍCIO ↗</a></section>`;
   }
@@ -485,18 +568,17 @@ document.addEventListener("click", (e) => {
   }
 });
 window.addEventListener("popstate", route);
-window.addEventListener("visibilitychange", async () => {
-  if (document.hidden) return;
-  try {
-    const data = await api("/api/menu");
-    open = data.open;
-  } catch {}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshAvailability().catch(markAvailabilityUnknown);
 });
+setInterval(() => {
+  if (!document.hidden) refreshAvailability().catch(markAvailabilityUnknown);
+}, 30000);
 try {
   const data = await api("/api/menu");
   products = data.products;
   shop = data.shop;
-  open = data.open;
+  applyAvailability(data.availability);
   cart = cart.filter((i) => products.some((p) => p.id === i.id));
   updateCartBadge();
   await route();

@@ -43,6 +43,7 @@ export async function api(path, options = {}) {
   if (!res.ok)
     throw Object.assign(new Error(data.error || "Não foi possível concluir."), {
       status: res.status,
+      ...(data.availability ? { availability: data.availability } : {}),
     });
   return data;
 }

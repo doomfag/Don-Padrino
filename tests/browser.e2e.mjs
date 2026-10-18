@@ -226,3 +226,81 @@ test("admin: login, configurações, Instagram azul e ausência de overflow", as
   }
   await page.close();
 });
+
+test("fechamento com carrinho aberto bloqueia a compra e preserva os itens", async () => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
+    timezoneId: "Asia/Tokyo",
+  });
+  const page = await context.newPage();
+  await page.goto(base);
+  await page.locator('.hero [data-product="calabresa"]').click();
+  await page.locator("#add-product").click();
+  await page.locator(".cart-trigger").click();
+  await page.locator("#name").fill("Cliente no fechamento");
+  await page.locator("#phone").fill("21988885555");
+  await expect(page.locator("#submit-order")).toBeEnabled();
+  await admin("/api/admin/settings", "PUT", { acceptingOrders: false });
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("visibilitychange")),
+  );
+  await expect(page.locator("#submit-order")).toBeDisabled();
+  await expect(page.locator("#checkout-availability")).toContainText(
+    "pausados",
+  );
+  await expect(page.locator("#name")).toHaveValue("Cliente no fechamento");
+  await expect(page.locator("#cart-count")).toHaveText("1");
+  await admin("/api/admin/settings", "PUT", { acceptingOrders: true });
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("visibilitychange")),
+  );
+  await expect(page.locator("#submit-order")).toBeEnabled();
+  const before = await admin("/api/admin/orders");
+  await page.route("**/api/orders", async (route) => {
+    await admin("/api/admin/settings", "PUT", { acceptingOrders: false });
+    await route.continue();
+  });
+  await page.locator("#submit-order").click();
+  await expect(page.locator("#submit-order")).toBeDisabled();
+  await expect(page.locator("#checkout-error")).toContainText("pausados");
+  assert.equal((await admin("/api/admin/orders")).length, before.length);
+  await expect(page.locator("#cart-count")).toHaveText("1");
+  await admin("/api/admin/settings", "PUT", { acceptingOrders: true });
+  await context.close();
+});
+
+test("prazo conhecido de fechamento bloqueia a finalização mesmo se a conexão cair", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
+  });
+  await page.goto(base);
+  await page.locator('.hero [data-product="calabresa"]').click();
+  await page.locator("#add-product").click();
+  await page.locator(".cart-trigger").click();
+  await expect(page.locator("#submit-order")).toBeEnabled();
+  let requests = 0;
+  await page.route("**/api/availability", async (route) => {
+    if (requests++) return route.abort("internetdisconnected");
+    const now = Date.now();
+    await route.fulfill({
+      json: {
+        open: true,
+        reason: "open",
+        serverNow: new Date(now).toISOString(),
+        nextCloseAt: new Date(now + 300).toISOString(),
+        nextOpenAt: null,
+        shortLabel: "Aberto · pedidos até meia-noite",
+        message: "Estamos abertos.",
+      },
+    });
+  });
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("visibilitychange")),
+  );
+  await expect(page.locator("#submit-order")).toBeDisabled();
+  await expect(page.locator("#checkout-availability")).toBeVisible();
+  await expect(page.locator("#cart-count")).toHaveText("1");
+  await page.close();
+});

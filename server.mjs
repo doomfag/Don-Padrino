@@ -1,3 +1,4 @@
+import { getAvailability } from "./hours.mjs";
 import { postalLookup } from "./postal.mjs";
 import http from "node:http";
 import { readFile, stat } from "node:fs/promises";
@@ -12,7 +13,6 @@ import {
   verifyPassword,
   orderView,
   quote,
-  isOpen,
 } from "./store.mjs";
 const root = resolve("public");
 const streams = new Map(),
@@ -119,6 +119,14 @@ function safeText(v, max = 150) {
     .trim()
     .slice(0, max);
 }
+function requireOpen() {
+  const availability = getAvailability(settings());
+  if (!availability.open)
+    throw Object.assign(new Error(availability.message), {
+      status: 409,
+      availability,
+    });
+}
 function publicSettings() {
   const shop = settings();
   return Object.fromEntries(
@@ -208,12 +216,17 @@ const server = http.createServer(async (req, res) => {
       method = req.method;
     if (["POST", "PATCH", "DELETE", "PUT"].includes(method)) originCheck(req);
     if (path === "/api/health") return json(res, 200, { ok: true });
-    if (path === "/api/menu" && method === "GET")
+    if (path === "/api/availability" && method === "GET")
+      return json(res, 200, getAvailability(settings()));
+    if (path === "/api/menu" && method === "GET") {
+      const availability = getAvailability(settings());
       return json(res, 200, {
         products: catalog,
         shop: publicSettings(),
-        open: isOpen(),
+        open: availability.open,
+        availability,
       });
+    }
     const postalMatch = path.match(/^\/api\/postal\/(\d{8})$/);
     if (postalMatch && method === "GET") {
       limit(req, "postal", 30);
@@ -233,10 +246,7 @@ const server = http.createServer(async (req, res) => {
         .prepare("SELECT * FROM orders WHERE request_key=?")
         .get(key);
       if (old) return json(res, 200, orderView(old));
-      if (!isOpen())
-        fail(
-          "Estamos fechados agora. Funcionamos de quinta a domingo, das 18h às 00h.",
-        );
+      requireOpen();
       const q = await quote(input),
         name = safeText(input.name, 80),
         phone = String(input.phone || "").replace(/\D/g, "");
@@ -280,6 +290,7 @@ const server = http.createServer(async (req, res) => {
         .prepare("SELECT * FROM orders WHERE request_key=?")
         .get(key);
       if (concurrent) return json(res, 200, orderView(concurrent));
+      requireOpen();
       const token = randomBytes(24).toString("hex"),
         courier = randomBytes(24).toString("hex"),
         now = new Date().toISOString();
@@ -569,6 +580,7 @@ const server = http.createServer(async (req, res) => {
           error.status === 500
             ? "Erro interno. Tente novamente."
             : error.message,
+        ...(error.availability ? { availability: error.availability } : {}),
       });
     else res.end();
   }

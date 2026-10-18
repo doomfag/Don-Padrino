@@ -1,3 +1,4 @@
+import { getAvailability } from "./hours.mjs";
 import { postalLookup, normalized } from "./postal.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
@@ -202,15 +203,5 @@ export async function quote(input) {
 }
 
 export function isOpen(shop = settings(), date = new Date()) {
-  if (!shop.acceptingOrders) return false;
-  if (!shop.enforceHours) return true;
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    weekday: "short",
-    hour: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-  const day = parts.find((p) => p.type === "weekday").value,
-    hour = Number(parts.find((p) => p.type === "hour").value);
-  return ["Thu", "Fri", "Sat", "Sun"].includes(day) && hour >= 18;
+  return getAvailability(shop, date).open;
 }

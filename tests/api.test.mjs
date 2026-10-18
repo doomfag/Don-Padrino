@@ -296,7 +296,13 @@ test("configurações validam faixas, pausam venda e preservam pedidos anteriore
     400,
   );
   await request("/api/admin/settings", "PUT", { acceptingOrders: false }, true);
-  assert.equal((await request("/api/orders", "POST", input())).status, 400);
+  const blocked = await request("/api/orders", "POST", input());
+  assert.equal(blocked.status, 409);
+  assert.equal(blocked.data.availability.open, false);
+  assert.equal(blocked.data.availability.reason, "paused");
+  const availability = await request("/api/availability");
+  assert.equal(availability.status, 200);
+  assert.equal(availability.data.open, false);
   await request(
     "/api/admin/settings",
     "PUT",

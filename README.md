@@ -56,7 +56,20 @@ No painel você pode:
 - Taxas iniciais: **Santa Cruz R$ 6; Urucânia R$ 7; Sepetiba R$ 9**. São valores iniciais definidos a pedido do proprietário; a margem depende dos custos reais e deve ser acompanhada na operação.
 - Preparo estimado: **35 min**, mais deslocamento inicial de **15 min em Santa Cruz, 18 min em Urucânia e 25 min em Sepetiba**. São estimativas editáveis, sem integração com trânsito. A previsão começa no início do preparo e é recalculada ao sair para entrega. O administrador pode substituir a previsão de um pedido.
 
-Alterar o texto do horário no painel não altera os dias da regra automática em `store.mjs`. Os valores são calculados no servidor em centavos; o cliente não define o preço final. As alterações de taxa só afetam novos pedidos.
+Alterar o texto do horário no painel não altera os dias da regra automática em `hours.mjs`. Os valores são calculados no servidor em centavos; o cliente não define o preço final. As alterações de taxa só afetam novos pedidos.
+
+## Horário de funcionamento e fechamento automático
+
+A loja recebe novos pedidos de **quinta a domingo, das 18h até antes de 00h**, no horário de Brasília (`America/Sao_Paulo`). Segunda, terça, quarta e os períodos de manhã/tarde ficam fechados para novas vendas.
+
+- A página mostra discretamente se a pizzaria está aberta e quando abre novamente: hoje, amanhã ou o próximo dia de funcionamento.
+- O cardápio continua disponível, e o carrinho pode ser montado e fica salvo no navegador. Fora do horário, a finalização é bloqueada. Não há agendamento nem envio automático de um carrinho ao abrir.
+- O navegador consulta o atendimento a cada 30 segundos e ao retornar à página. Ao atingir a meia-noite conhecida pelo servidor, bloqueia a finalização mesmo se a conexão cair.
+- O servidor confere o atendimento antes do processamento e imediatamente antes de registrar um novo pedido. Uma página antiga ou o relógio/fuso do celular não autorizam pedidos fora do horário.
+- Pedidos já registrados continuam disponíveis para pagamento, preparo e acompanhamento depois do fechamento.
+- O administrador pode pausar os pedidos imediatamente ou abrir uma exceção de horário pelo painel. Uma pausa prevalece sobre a abertura excepcional.
+
+As regras e a próxima abertura são calculadas em `hours.mjs`; o endpoint `/api/availability` informa o estado atual. Para alterar os dias e horários automáticos, ajuste esse módulo. O texto de horário editável no painel é apenas informativo.
 
 ## Fluxo do pedido
 
@@ -113,7 +126,8 @@ Os testes criam **bancos isolados temporários**. Consultas externas de CEP usam
 ## Arquivos principais
 
 - `server.mjs`: HTTP, autenticação, API, SSE e entrega dos arquivos estáticos.
-- `store.mjs`: SQLite, catálogo, horário, preços e taxas.
+- `store.mjs`: SQLite, catálogo, preços e taxas.
+- `hours.mjs`: regras de funcionamento, fechamento e próxima abertura.
 - `postal.mjs`: consulta/cadastro de CEP e cache.
 - `public/app.js`: landing page, cardápio e checkout.
 - `public/admin.js`: administração.
