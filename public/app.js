@@ -152,7 +152,7 @@ function addItem(id, quantity = 1, note = "") {
 }
 function image(product, cls = "", loading = "lazy") {
   if (product.type === "drink")
-    return `<span class="drink-photo ${cls}" role="img" aria-label="${esc(product.name)}"><span class="drink-bottle" style="--bottle-position:${((product.imageColumn ?? 0) * 100) / 3}%"></span></span>`;
+    return `<span class="drink-photo ${cls}" role="img" aria-label="${esc(product.name)}"><img class="drink-bottle" src="${esc(cls === "product-picture" ? product.image : product.thumbnail || product.image)}" alt="" width="640" height="960" loading="${loading}" decoding="async"></span>`;
   const compact = cls === "card-image" || !cls;
   return `<img class="${cls}" src="${esc(compact ? product.thumbnail || product.image : product.image)}" alt="Pizza ${esc(product.name)}" loading="${loading}" decoding="async" ${cls === "hero-image" ? 'fetchpriority="high"' : ""} width="${compact ? 640 : 1254}" height="${compact ? 640 : 1254}">`;
 }
@@ -209,7 +209,7 @@ function renderHome() {
     .filter((p) => p.type === "drink")
     .map(
       (p) =>
-        `<div class="drink-row">${image(p, "drink-thumb")}<div>${esc(p.name)}<strong>${money(p.price)}</strong></div><button class="add-button" data-add="${p.id}" aria-label="Adicionar ${esc(p.name)}" ${shop.drinksConfirmed ? "" : "disabled"}>+</button></div>`,
+        `<div class="drink-row"><button class="drink-preview" data-product="${p.id}" aria-label="Ver foto e detalhes de ${esc(p.name)}">${image(p, "drink-thumb")}</button><div><button class="drink-name" data-product="${p.id}">${esc(p.name)}</button><strong>${money(p.price)}</strong></div><button class="add-button" data-add="${p.id}" aria-label="Adicionar ${esc(p.name)}" ${shop.drinksConfirmed ? "" : "disabled"}>+</button></div>`,
     )
     .join(
       "",
@@ -251,8 +251,9 @@ function openProduct(id) {
   const p = products.find((p) => p.id === id);
   if (!p) return;
   let qty = 1;
+  const isDrink = p.type === "drink";
   const dialog = overlay(
-    `<div class="modal-top"><button data-close>‹ &nbsp; Cardápio</button><button class="icon-button close-button" data-close aria-label="Fechar detalhes">×</button></div><div class="product-layout">${image(p, "product-picture", "eager")}<div class="product-content"><h2>${esc(p.name)}</h2><p class="size">35 cm / 8 fatias</p><p>Molho de tomate, ${esc(p.description.charAt(0).toLowerCase() + p.description.slice(1))}</p><div class="product-price-row"><strong class="price" id="product-total">${money(p.price)}</strong><div class="quantity"><button data-product-qty="-1" aria-label="Diminuir quantidade">−</button><span id="product-qty">1</span><button data-product-qty="1" aria-label="Aumentar quantidade">+</button></div></div><div class="field"><label for="product-note">Observações (opcional)</label><input id="product-note" maxlength="300" placeholder="Alguma observação sobre sua pizza?"></div><button class="primary" id="add-product">ADICIONAR AO PEDIDO <span class="arrow">↗</span></button></div></div>`,
+    `<div class="modal-top"><button data-close>‹ &nbsp; Cardápio</button><button class="icon-button close-button" data-close aria-label="Fechar detalhes">×</button></div><div class="product-layout ${isDrink ? "drink-product-layout" : ""}">${image(p, "product-picture", "eager")}<div class="product-content"><h2>${esc(p.name)}</h2><p class="size">${isDrink ? "Garrafa de 2 litros" : "35 cm / 8 fatias"}</p><p>${isDrink ? esc(p.description) : `Molho de tomate, ${esc(p.description.charAt(0).toLowerCase() + p.description.slice(1))}`}</p><div class="product-price-row"><strong class="price" id="product-total">${money(p.price)}</strong><div class="quantity"><button data-product-qty="-1" aria-label="Diminuir quantidade">−</button><span id="product-qty">1</span><button data-product-qty="1" aria-label="Aumentar quantidade">+</button></div></div><div class="field"><label for="product-note">Observações (opcional)</label><input id="product-note" maxlength="300" placeholder="${isDrink ? "Alguma observação sobre a bebida?" : "Alguma observação sobre sua pizza?"}"></div><button class="primary" id="add-product" ${isDrink && !shop.drinksConfirmed ? "disabled" : ""}>ADICIONAR AO PEDIDO <span class="arrow">↗</span></button></div></div>`,
     "modal",
     p.name,
   );

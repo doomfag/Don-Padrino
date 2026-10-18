@@ -173,3 +173,5 @@ Os testes criam **bancos isolados temporários**. Consultas externas de CEP usam
 O envio do código ao GitHub não coloca o site em uma hospedagem. O deploy e a conexão de domínio são etapas separadas. A restauração do ambiente em uma nova tarefa também depende da publicação pela interface.
 
 Os símbolos de dinheiro, Pix e cartão em `public/assets/payment-*.svg` são do [Font Awesome Free 6.7.2](https://fontawesome.com/), licenciados sob [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Os avisos de autoria foram preservados nos arquivos SVG.
+
+As quatro bebidas usam imagens individuais em WebP, com miniaturas leves para o cardápio/carrinho e arquivos maiores para a foto ampliada. As garrafas têm flutuação suave e inclinação/destaque ao passar o mouse ou focar com teclado. Clique na foto ou no nome para ampliar e adicionar unidades. A preferência de redução de movimento desativa as animações.

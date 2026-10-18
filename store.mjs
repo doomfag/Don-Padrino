@@ -74,8 +74,8 @@ catalog.push(
     description: "Para acompanhar sua pizza.",
     price: 1200,
     type: "drink",
-    image: "/assets/refrigerantes-2l-v2.webp",
-    imageColumn: 0,
+    image: "/assets/guarana-bottle-hd.webp",
+    thumbnail: "/assets/guarana-bottle-thumb.webp",
   },
   {
     id: "coca",
@@ -83,8 +83,8 @@ catalog.push(
     description: "Para acompanhar sua pizza.",
     price: 1400,
     type: "drink",
-    image: "/assets/refrigerantes-2l-v2.webp",
-    imageColumn: 1,
+    image: "/assets/coca-bottle-hd.webp",
+    thumbnail: "/assets/coca-bottle-thumb.webp",
   },
   {
     id: "coca-zero",
@@ -92,8 +92,8 @@ catalog.push(
     description: "Todo o sabor, sem açúcar.",
     price: 1500,
     type: "drink",
-    image: "/assets/refrigerantes-2l-v2.webp",
-    imageColumn: 2,
+    image: "/assets/coca-zero-bottle-hd.webp",
+    thumbnail: "/assets/coca-zero-bottle-thumb.webp",
   },
   {
     id: "fanta-laranja",
@@ -101,8 +101,8 @@ catalog.push(
     description: "Para acompanhar sua pizza.",
     price: 1200,
     type: "drink",
-    image: "/assets/refrigerantes-2l-v2.webp",
-    imageColumn: 3,
+    image: "/assets/fanta-laranja-bottle-hd.webp",
+    thumbnail: "/assets/fanta-laranja-bottle-thumb.webp",
   },
 );
 export const defaults = {

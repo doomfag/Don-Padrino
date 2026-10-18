@@ -362,12 +362,32 @@ test("quatro bebidas têm fotos e Zero/Fanta entram no carrinho e na mensagem de
   await page.goto(base + "/#cardapio");
   await expect(page.locator(".drink-row")).toHaveCount(4);
   await expect(page.locator(".drink-row .drink-photo")).toHaveCount(4);
-  const photo = await page.request.get(
-    base + "/assets/refrigerantes-2l-v2.webp",
+  const menu = await (await page.request.get(base + "/api/menu")).json();
+  for (const product of menu.products.filter((p) => p.type === "drink")) {
+    for (const path of [product.image, product.thumbnail]) {
+      const photo = await page.request.get(base + path);
+      assert.equal(photo.status(), 200);
+      assert.match(photo.headers()["content-type"], /image\/webp/);
+    }
+  }
+  await page.locator('.drink-preview[data-product="coca-zero"]').click();
+  await expect(page.locator(".product-content h2")).toHaveText(
+    "Coca-Cola Zero Açúcar 2L",
   );
-  assert.equal(photo.status(), 200);
-  assert.match(photo.headers()["content-type"], /image\/webp/);
-  await page.locator('[data-add="coca-zero"]').click();
+  await expect(page.locator(".product-content .size")).toHaveText(
+    "Garrafa de 2 litros",
+  );
+  await expect(page.locator(".product-content")).not.toContainText(
+    "Molho de tomate",
+  );
+  const enlarged = page.locator(".drink-product-layout .drink-bottle");
+  await enlarged.evaluate((img) => img.decode());
+  assert.ok(
+    await enlarged.evaluate(
+      (img) => img.naturalWidth >= 640 && img.naturalHeight >= 960,
+    ),
+  );
+  await page.locator("#add-product").click();
   await page.locator('[data-add="fanta-laranja"]').click();
   await page.locator(".cart-trigger").click();
   await expect(page.locator("#cart-items .drink-photo")).toHaveCount(2);
