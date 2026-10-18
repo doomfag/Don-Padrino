@@ -171,3 +171,5 @@ Os testes criam **bancos isolados temporários**. Consultas externas de CEP usam
 - `public/assets`: pizzas restauradas em alta resolução a partir das referências dos vídeos, com recorte transparente, e imagens ilustrativas realistas das quatro bebidas. A restauração pode reconstruir pequenos detalhes da textura; fotos originais dos produtos reais podem substituir essas imagens. O carrossel troca automaticamente a cada 7,5 segundos e usa rotação/flutuação suaves; as animações respeitam a preferência de redução de movimento do dispositivo.
 
 O envio do código ao GitHub não coloca o site em uma hospedagem. O deploy e a conexão de domínio são etapas separadas. A restauração do ambiente em uma nova tarefa também depende da publicação pela interface.
+
+Os símbolos de dinheiro, Pix e cartão em `public/assets/payment-*.svg` são do [Font Awesome Free 6.7.2](https://fontawesome.com/), licenciados sob [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Os avisos de autoria foram preservados nos arquivos SVG.
