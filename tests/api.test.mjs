@@ -76,7 +76,7 @@ after(async () => {
 test("catálogo, identidade e API administrativa protegida", async () => {
   const r = await request("/api/menu");
   assert.equal(r.status, 200);
-  assert.equal(r.data.products.length, 9);
+  assert.equal(r.data.products.length, 11);
   assert.equal(r.data.shop.instagram, "donpadrinorj");
   assert.equal(r.data.shop.cnpj, "68.686.833/0001-91");
   assert.equal((await request("/api/admin/orders")).status, 401);
@@ -107,6 +107,26 @@ test("cálculo autoritativo, bebidas, taxas e CEP fora da área", async () => {
     }),
   );
   assert.equal(r.data.total, 5700);
+  const extraDrinks = await request(
+    "/api/quote",
+    "POST",
+    input({
+      items: [
+        { id: "calabresa", quantity: 1 },
+        { id: "coca-zero", quantity: 2 },
+        { id: "fanta-laranja", quantity: 1 },
+      ],
+    }),
+  );
+  assert.equal(extraDrinks.data.total, 8700);
+  assert.equal(
+    extraDrinks.data.items.find((i) => i.id === "coca-zero").price,
+    1500,
+  );
+  assert.equal(
+    extraDrinks.data.items.find((i) => i.id === "fanta-laranja").price,
+    1200,
+  );
   const delivery = await request(
     "/api/quote",
     "POST",

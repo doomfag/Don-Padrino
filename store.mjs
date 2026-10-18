@@ -46,7 +46,8 @@ export const catalog = [
   description,
   price: 4500,
   type: "pizza",
-  image: `/assets/${id}.webp`,
+  image: `/assets/${id}-hd.webp`,
+  thumbnail: `/assets/${id}-card.webp`,
 }));
 catalog.push(
   {
@@ -55,6 +56,8 @@ catalog.push(
     description: "Para acompanhar sua pizza.",
     price: 1200,
     type: "drink",
+    image: "/assets/refrigerantes-2l-v2.webp",
+    imageColumn: 0,
   },
   {
     id: "coca",
@@ -62,6 +65,26 @@ catalog.push(
     description: "Para acompanhar sua pizza.",
     price: 1400,
     type: "drink",
+    image: "/assets/refrigerantes-2l-v2.webp",
+    imageColumn: 1,
+  },
+  {
+    id: "coca-zero",
+    name: "Coca-Cola Zero Açúcar 2L",
+    description: "Todo o sabor, sem açúcar.",
+    price: 1500,
+    type: "drink",
+    image: "/assets/refrigerantes-2l-v2.webp",
+    imageColumn: 2,
+  },
+  {
+    id: "fanta-laranja",
+    name: "Fanta Laranja 2L",
+    description: "Para acompanhar sua pizza.",
+    price: 1200,
+    type: "drink",
+    image: "/assets/refrigerantes-2l-v2.webp",
+    imageColumn: 3,
   },
 );
 export const defaults = {

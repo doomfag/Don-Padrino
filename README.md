@@ -14,6 +14,10 @@ As imagens abaixo mostram a implementação atual e podem ser visualizadas diret
 
 <img src="docs/preview-mobile.png" alt="Don Padrino no celular" width="390">
 
+### Refrigerantes no cardápio
+
+![Cardápio com imagens das quatro bebidas](docs/preview-drinks-desktop.png)
+
 ## Executar
 
 Requer **Node.js 24.5+** (SQLite nativo). O servidor de produção não depende de pacotes externos.
@@ -52,7 +56,7 @@ No painel você pode:
 - Retirada: **Travessa Projetada C, nº 8 — Dumas, Santa Cruz, Rio de Janeiro — RJ, 23550-170**.
 - Abertura automática: **quinta a domingo, 18h às 00h**, em `America/Sao_Paulo`. O servidor impede pedidos fora desse horário; o painel permite suspender a restrição, para uma abertura excepcional.
 - Pizzas: **35 cm, 8 fatias, R$ 45**.
-- Guaraná Antarctica 2L: **R$ 12**. Coca-Cola 2L: **R$ 14**.
+- Guaraná Antarctica 2L: **R$ 12**. Coca-Cola 2L: **R$ 14**. Coca-Cola Zero Açúcar 2L: **R$ 15**. Fanta Laranja 2L: **R$ 12**.
 - Taxas iniciais: **Santa Cruz R$ 6; Urucânia R$ 7; Sepetiba R$ 9**. São valores iniciais definidos a pedido do proprietário; a margem depende dos custos reais e deve ser acompanhada na operação.
 - Preparo estimado: **35 min**, mais deslocamento inicial de **15 min em Santa Cruz, 18 min em Urucânia e 25 min em Sepetiba**. São estimativas editáveis, sem integração com trânsito. A previsão começa no início do preparo e é recalculada ao sair para entrega. O administrador pode substituir a previsão de um pedido.
 
@@ -133,6 +137,6 @@ Os testes criam **bancos isolados temporários**. Consultas externas de CEP usam
 - `public/admin.js`: administração.
 - `public/order.js`: acompanhamento e compartilhamento GPS.
 - `public/style.css`: layout responsivo, estados e animações, com suporte à redução de movimento.
-- `public/assets`: imagens extraídas dos vídeos fornecidos. A qualidade original dos vídeos limita a resolução disponível; imagens e logo originais permitirão maior nitidez sem mudar o layout.
+- `public/assets`: pizzas restauradas em alta resolução a partir das referências dos vídeos, com recorte transparente, e imagens ilustrativas realistas das quatro bebidas. A restauração pode reconstruir pequenos detalhes da textura; fotos originais dos produtos reais podem substituir essas imagens. O carrossel troca automaticamente a cada 7,5 segundos e usa rotação/flutuação suaves; as animações respeitam a preferência de redução de movimento do dispositivo.
 
 O envio do código ao GitHub não coloca o site em uma hospedagem. O deploy e a conexão de domínio são etapas separadas. A restauração do ambiente em uma nova tarefa também depende da publicação pela interface.

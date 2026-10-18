@@ -2425,3 +2425,223 @@ body {
     margin-left: 3px;
   }
 }
+/* The glow belongs behind the pizza, never over the photograph. */
+.hero {
+  --glow: 141, 68, 34;
+  background: #070908;
+}
+.hero.green {
+  --glow: 23, 105, 72;
+  background: #070908;
+}
+.hero:before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 36% 65% at 54% 48%,
+    rgba(var(--glow), 0.5) 0%,
+    rgba(var(--glow), 0.24) 36%,
+    rgba(var(--glow), 0.06) 63%,
+    transparent 86%
+  );
+  animation: hero-glow 8s ease-in-out infinite alternate;
+}
+.hero-main {
+  max-width: 1600px;
+}
+.hero-image {
+  filter: none;
+  border-radius: 0;
+  animation: pizza-reveal 0.65s ease both;
+  backface-visibility: hidden;
+}
+.hero-image-wrap {
+  transform: translateX(2%)
+    translate3d(var(--pointer-x, 0px), var(--pointer-y, 0px), 0);
+  transition: transform 0.7s ease-out;
+}
+.hero-float {
+  animation: pizza-float 5.5s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+.hero-rotation {
+  animation: pizza-rotate 60s linear infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+.leaf {
+  animation: leaf-float 5s ease-in-out infinite alternate;
+}
+.leaf.two {
+  animation-delay: -2s;
+}
+.leaf.three {
+  animation-delay: -3.5s;
+}
+.specks {
+  opacity: 0.48;
+  animation: embers-drift 16s ease-in-out infinite alternate;
+}
+.hero-description,
+.hero-heading,
+.hero-details {
+  filter: none;
+}
+@keyframes pizza-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes pizza-float {
+  0%,
+  100% {
+    transform: translateY(5px);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes pizza-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes leaf-float {
+  from {
+    transform: translateY(-4px) rotate(-8deg);
+  }
+  to {
+    transform: translateY(5px) rotate(7deg);
+  }
+}
+@keyframes hero-glow {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes embers-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-6px, -10px, 0);
+  }
+}
+.drink-photo {
+  --drink-height: 76px;
+  width: 74px;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.drink-bottle {
+  display: block;
+  width: calc(var(--drink-height) * 0.375);
+  height: var(--drink-height);
+  background-image: url("/assets/refrigerantes-2l-v2.webp");
+  background-size: 400% 100%;
+  background-position: var(--bottle-position, 0%) center;
+  background-repeat: no-repeat;
+}
+.drink-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 34px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ffffff0b;
+}
+.drink-row .drink-photo {
+  --drink-height: 68px;
+  width: 42px;
+  height: 68px;
+}
+.drink-row .add-button {
+  float: none;
+  margin: 0;
+}
+.drink-row > div {
+  min-width: 0;
+}
+.drinks-card .outline {
+  margin-top: 12px;
+}
+@media (min-width: 701px) {
+  .hero:before {
+    background: radial-gradient(
+      ellipse 34% 66% at 54% 48%,
+      rgba(var(--glow), 0.53) 0%,
+      rgba(var(--glow), 0.26) 36%,
+      rgba(var(--glow), 0.07) 64%,
+      transparent 87%
+    );
+  }
+}
+@media (max-width: 700px) {
+  .hero,
+  .hero.green {
+    background: #070908;
+  }
+  .hero:before {
+    background: radial-gradient(
+      ellipse 65% 53% at 50% 48%,
+      rgba(var(--glow), 0.55) 0%,
+      rgba(var(--glow), 0.23) 40%,
+      transparent 85%
+    );
+  }
+  .hero-image-wrap {
+    transform: translate3d(var(--pointer-x, 0px), var(--pointer-y, 0px), 0);
+  }
+  .hero-float {
+    animation-duration: 6.5s;
+  }
+  .drink-row {
+    grid-template-columns: 32px minmax(0, 1fr) 28px;
+    gap: 6px;
+    font-size: 10px;
+  }
+  .drink-row .drink-photo {
+    --drink-height: 62px;
+    width: 32px;
+    height: 62px;
+  }
+  .drink-row strong {
+    font-size: 12px;
+  }
+  .drink-row .add-button {
+    width: 28px;
+    height: 30px;
+  }
+  .drinks-card {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-float,
+  .hero-rotation,
+  .hero-image-wrap {
+    animation: none;
+    transform: none;
+    will-change: auto;
+  }
+}

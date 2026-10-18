@@ -304,3 +304,78 @@ test("prazo conhecido de fechamento bloqueia a finalização mesmo se a conexão
   await expect(page.locator("#cart-count")).toHaveText("1");
   await page.close();
 });
+
+test("hero troca sozinha após 7,5 segundos mesmo com mouse sobre a pizza", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 1280, height: 720 },
+    reducedMotion: "no-preference",
+  });
+  await page.clock.install();
+  await page.goto(base);
+  await expect(page.locator(".hero h1")).toHaveText("Calabresa");
+  await page.locator(".hero-image").evaluate((img) => img.decode());
+  const rect = await page.locator(".hero-image").boundingBox();
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+  assert.ok(
+    await page
+      .locator(".hero-image")
+      .evaluate((img) => img.complete && img.naturalWidth >= 1024),
+    "A imagem da hero precisa de resolução alta.",
+  );
+  await page.clock.runFor(1200);
+  const before = await page
+    .locator(".hero-rotation")
+    .evaluate((el) => getComputedStyle(el).transform);
+  await page.clock.runFor(1000);
+  // CSS animations use the browser's rendering clock, separately from mocked JS timers.
+  await expect
+    .poll(
+      () =>
+        page
+          .locator(".hero-rotation")
+          .evaluate((el) => getComputedStyle(el).transform),
+      { timeout: 2000 },
+    )
+    .not.toBe(before);
+  await page.clock.runFor(5500);
+  await expect(page.locator(".hero h1")).toHaveText("Muçarela");
+  await page.clock.runFor(7500);
+  await expect(page.locator(".hero h1")).toHaveText("Frango com Catupiry");
+  await page.clock.runFor(7500);
+  await expect(page.locator(".hero h1")).toHaveText("Margherita");
+  for (const name of ["Portuguesa", "Mista", "Frango com Bacon", "Calabresa"]) {
+    await page.clock.runFor(7500);
+    await expect(page.locator(".hero h1")).toHaveText(name);
+  }
+  await page.close();
+});
+
+test("quatro bebidas têm fotos e Zero/Fanta entram no carrinho e na mensagem de pagamento", async () => {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
+  });
+  await page.goto(base + "/#cardapio");
+  await expect(page.locator(".drink-row")).toHaveCount(4);
+  await expect(page.locator(".drink-row .drink-photo")).toHaveCount(4);
+  const photo = await page.request.get(
+    base + "/assets/refrigerantes-2l-v2.webp",
+  );
+  assert.equal(photo.status(), 200);
+  assert.match(photo.headers()["content-type"], /image\/webp/);
+  await page.locator('[data-add="coca-zero"]').click();
+  await page.locator('[data-add="fanta-laranja"]').click();
+  await page.locator(".cart-trigger").click();
+  await expect(page.locator("#cart-items .drink-photo")).toHaveCount(2);
+  await expect(page.locator("#summary-total")).toHaveText(/27,00/);
+  await page.locator("#name").fill("Teste novas bebidas");
+  await page.locator("#phone").fill("21988884444");
+  await page.locator("#submit-order").click();
+  await expect(page.locator(".status-box h2")).toHaveText("Pedido registrado.");
+  const href = await page.locator("a.primary.green").getAttribute("href");
+  const message = new URL(href).searchParams.get("text");
+  assert.match(message, /Coca-Cola Zero Açúcar 2L/);
+  assert.match(message, /Fanta Laranja 2L/);
+  assert.match(message, /27,00/);
+  await page.close();
+});

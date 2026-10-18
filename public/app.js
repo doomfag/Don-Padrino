@@ -151,9 +151,10 @@ function addItem(id, quantity = 1, note = "") {
   toast("Adicionado ao seu pedido.");
 }
 function image(product, cls = "", loading = "lazy") {
-  return product.image
-    ? `<img class="${cls}" src="${esc(product.image)}" alt="Pizza ${esc(product.name)}" loading="${loading}" decoding="async" width="440" height="440">`
-    : `<div class="mini-drink" aria-hidden="true">${product.id === "coca" ? "Coca-Cola" : "Guaraná"}<br>2L</div>`;
+  if (product.type === "drink")
+    return `<span class="drink-photo ${cls}" role="img" aria-label="${esc(product.name)}"><span class="drink-bottle" style="--bottle-position:${((product.imageColumn ?? 0) * 100) / 3}%"></span></span>`;
+  const compact = cls === "card-image" || !cls;
+  return `<img class="${cls}" src="${esc(compact ? product.thumbnail || product.image : product.image)}" alt="Pizza ${esc(product.name)}" loading="${loading}" decoding="async" ${cls === "hero-image" ? 'fetchpriority="high"' : ""} width="${compact ? 640 : 1254}" height="${compact ? 640 : 1254}">`;
 }
 function setTab(name) {
   $$("[data-tab]").forEach((el) =>
@@ -162,7 +163,7 @@ function setTab(name) {
 }
 function heroMarkup() {
   const p = products.filter((p) => p.type === "pizza")[slide];
-  return `<section class="hero ${p.id === "margherita" ? "green" : ""}" aria-label="Pizzas em destaque"><div class="specks"></div><span class="leaf one"></span><span class="leaf two"></span><span class="leaf three"></span><div class="hero-main"><div class="hero-heading"><p class="eyebrow">DON PADRINO / PIZZAS</p><h1>${esc(p.name)}</h1><button class="outline" data-product="${p.id}">VER ESTA PIZZA <span class="arrow">↗</span></button></div><div class="hero-image-wrap">${image(p, "hero-image", "eager")}</div><div class="hero-details"><div class="hero-number"><strong>${String(slide + 1).padStart(2, "0")}</strong><span>/ 07</span></div><i class="hero-rule"></i><h2>${esc(p.name)}</h2><p class="hero-description">${esc(p.description)}</p><div class="size">35 cm &nbsp; / &nbsp; 8 fatias</div><div class="price">${money(p.price)}</div></div><div class="hero-controls"><div class="dots" aria-label="Escolher pizza em destaque">${products
+  return `<section class="hero ${p.id === "margherita" ? "green" : ""}" aria-label="Pizzas em destaque"><div class="specks"></div><span class="leaf one"></span><span class="leaf two"></span><span class="leaf three"></span><div class="hero-main"><div class="hero-heading"><p class="eyebrow">DON PADRINO / PIZZAS</p><h1>${esc(p.name)}</h1><button class="outline" data-product="${p.id}">VER ESTA PIZZA <span class="arrow">↗</span></button></div><div class="hero-image-wrap"><div class="hero-float"><div class="hero-rotation">${image(p, "hero-image", "eager")}</div></div></div><div class="hero-details"><div class="hero-number"><strong>${String(slide + 1).padStart(2, "0")}</strong><span>/ 07</span></div><i class="hero-rule"></i><h2>${esc(p.name)}</h2><p class="hero-description">${esc(p.description)}</p><div class="size">35 cm &nbsp; / &nbsp; 8 fatias</div><div class="price">${money(p.price)}</div></div><div class="hero-controls"><div class="dots" aria-label="Escolher pizza em destaque">${products
     .filter((p) => p.type === "pizza")
     .map(
       (p, i) =>
@@ -172,10 +173,28 @@ function heroMarkup() {
       "",
     )}</div><a href="#cardapio" class="explore">EXPLORAR CARDÁPIO &nbsp; ↓</a><div class="hero-arrows"><button data-slide-step="-1" aria-label="Pizza anterior">←</button><button data-slide-step="1" aria-label="Próxima pizza">→</button></div></div></div></section>`;
 }
-function setSlide(index) {
-  slide = (index + 7) % 7;
-  const hero = $(".hero");
-  if (hero) hero.outerHTML = heroMarkup();
+let slideRequest = 0;
+const readyImages = new Map();
+function prepareImage(product) {
+  if (!readyImages.has(product.id)) {
+    const img = new Image();
+    img.src = product.image;
+    readyImages.set(
+      product.id,
+      img.decode().catch(() => {}),
+    );
+  }
+  return readyImages.get(product.id);
+}
+async function setSlide(index) {
+  const request = ++slideRequest;
+  const next = (index + 7) % 7;
+  const pizzas = products.filter((p) => p.type === "pizza");
+  await prepareImage(pizzas[next]);
+  if (request !== slideRequest || !$(".hero")) return;
+  slide = next;
+  $(".hero").outerHTML = heroMarkup();
+  prepareImage(pizzas[(slide + 1) % 7]);
 }
 function renderHome() {
   main.innerHTML = `${shop.notice ? `<div class="site-notice">${esc(shop.notice)}</div>` : ""}<div id="inicio">${heroMarkup()}</div><section class="section" id="cardapio"><div class="section-header"><div><p class="eyebrow">01 / CARDÁPIO</p><h2>Escolha sua pizza.</h2></div><div class="section-meta">35 cm · 8 fatias<br><small>Todos os sabores: ${money(4500)}</small></div></div><div class="pizza-grid">${products
@@ -190,24 +209,15 @@ function renderHome() {
     .filter((p) => p.type === "drink")
     .map(
       (p) =>
-        `<div class="drink-row"><div>${esc(p.name)}<strong>${money(p.price)}</strong></div><button class="add-button" data-add="${p.id}" aria-label="Adicionar ${esc(p.name)}" ${shop.drinksConfirmed ? "" : "disabled"}>+</button></div>`,
+        `<div class="drink-row">${image(p, "drink-thumb")}<div>${esc(p.name)}<strong>${money(p.price)}</strong></div><button class="add-button" data-add="${p.id}" aria-label="Adicionar ${esc(p.name)}" ${shop.drinksConfirmed ? "" : "disabled"}>+</button></div>`,
     )
     .join(
       "",
     )}${!shop.drinksConfirmed ? '<p class="hint">Disponibilidade e preços em confirmação.</p>' : ""}<button class="outline" data-action="cart">VER MEU PEDIDO <span class="arrow">↗</span></button></article></div></section><section id="informacoes" class="section info-section"><div class="info-inner"><p class="eyebrow">02 / INFORMAÇÕES</p><h2>Entrega ou retirada.</h2><div class="info-grid"><div><h3>Da nossa casa para a sua.</h3><p>${esc(shop.address)}<br>CEP ${esc(shop.postalCode)}</p><p>Consulte a disponibilidade pelo CEP.<br>A taxa aparece no pedido antes de finalizar.</p><span data-store-status class="${open ? "store-open" : "store-closed"}">● ${esc(availability?.shortLabel || "Consultando horário…")}</span></div><div><h3>O seu próximo encontro tem pizza.</h3><p>${esc(shop.hours)}<br>Horário de Brasília.</p><p><a href="https://wa.me/${shop.whatsapp}" target="_blank" rel="noopener noreferrer">WhatsApp (21) 99456-8096 ↗</a></p><p>${instagram(shop)}</p></div></div><div class="info-cnpj"><span>DON PADRINO PIZZARIA · CNPJ ${esc(shop.cnpj)}</span><div><a href="/privacidade">Privacidade</a> &nbsp; · &nbsp; <a href="/admin">Área administrativa</a></div></div></div></section>`;
-  const hero = $(".hero");
-  let paused = false;
-  const pause = () => {
-    paused = true;
-  };
-  const resume = () => {
-    paused = false;
-  };
-  main.addEventListener("pointerover", pause);
-  main.addEventListener("pointerout", resume);
+  prepareImage(products.filter((p) => p.type === "pizza")[(slide + 1) % 7]);
+  // Autoplay stays active while hovering; only hidden pages and open dialogs pause it.
   slideTimer = setInterval(() => {
     if (
-      !paused &&
       !document.hidden &&
       !$("#overlay-root").children.length &&
       window.scrollY < window.innerHeight * 0.6 &&
@@ -226,10 +236,9 @@ function renderHome() {
   homeObserver.observe($("#inicio"));
   homeObserver.observe($("#cardapio"));
   cleanupPage = () => {
+    slideRequest++;
     clearInterval(slideTimer);
     homeObserver.disconnect();
-    main.removeEventListener("pointerover", pause);
-    main.removeEventListener("pointerout", resume);
   };
   setTab(location.hash === "#cardapio" ? "menu" : "home");
   if (location.hash)
@@ -585,3 +594,29 @@ try {
 } catch (err) {
   main.innerHTML = `<section class="page-shell narrow"><h1>Nosso forno já volta.</h1><p class="error">${esc(err.message)}</p><a class="outline" href="https://wa.me/5521994568096" target="_blank" rel="noopener noreferrer">PEDIR PELO WHATSAPP ↗</a></section>`;
 }
+
+main.addEventListener("pointermove", (event) => {
+  const hero = event.target.closest(".hero");
+  if (
+    !hero ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches ||
+    event.pointerType === "touch"
+  )
+    return;
+  const rect = hero.getBoundingClientRect();
+  hero.style.setProperty(
+    "--pointer-x",
+    `${((event.clientX - rect.left) / rect.width - 0.5) * 10}px`,
+  );
+  hero.style.setProperty(
+    "--pointer-y",
+    `${((event.clientY - rect.top) / rect.height - 0.5) * 10}px`,
+  );
+});
+main.addEventListener("pointerleave", () => {
+  const hero = $(".hero");
+  if (hero) {
+    hero.style.setProperty("--pointer-x", "0px");
+    hero.style.setProperty("--pointer-y", "0px");
+  }
+});
