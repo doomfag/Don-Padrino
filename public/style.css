@@ -450,6 +450,7 @@ button:hover:not(:disabled) {
   gap: 34px 24px;
 }
 .pizza-card {
+  align-self: start;
   background: var(--panel);
   border-radius: 5px;
   padding: 18px;
@@ -491,6 +492,7 @@ button:hover:not(:disabled) {
   color: #d1dec7;
 }
 .card-description {
+  min-height: 3.2em;
   font-size: 12px;
   color: var(--muted);
   line-height: 1.6;
